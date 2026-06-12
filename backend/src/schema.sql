@@ -71,17 +71,67 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS status         TEXT NOT NULL DEFAU
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS created_at     TIMESTAMPTZ NOT NULL DEFAULT now();
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS updated_at     TIMESTAMPTZ NOT NULL DEFAULT now();
 
-DO $$ BEGIN ALTER TABLE listings ALTER COLUMN user_id       SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE listings ALTER COLUMN website_name  SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE listings ALTER COLUMN website_url   SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE listings ALTER COLUMN category      SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE listings ALTER COLUMN monthly_price SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE listings ALTER COLUMN image_url     SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 
-DO $$ BEGIN
+-- ----------------------------------------------------------------------------
+-- listings.user_id FK self-healing
+-- ----------------------------------------------------------------------------
+-- 1) Drop pre-existing FK so we can convert column type if needed
+DO $$ BEGIN ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_user_fk; EXCEPTION WHEN others THEN NULL; END $$;
+
+-- 2) Drop NOT NULL temporarily so non-UUID garbage can be rewritten to NULL
+DO $$ BEGIN ALTER TABLE listings ALTER COLUMN user_id DROP NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
+
+-- 3) Convert listings.user_id to UUID if legacy TEXT/varchar
+DO $$
+DECLARE col_type TEXT;
+BEGIN
+  SELECT data_type INTO col_type FROM information_schema.columns
+   WHERE table_schema='public' AND table_name='listings' AND column_name='user_id';
+  IF col_type IS NOT NULL AND col_type <> 'uuid' THEN
+    BEGIN
+      ALTER TABLE listings
+        ALTER COLUMN user_id TYPE UUID
+        USING CASE
+          WHEN user_id IS NULL THEN NULL
+          WHEN user_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN user_id::text::uuid
+          ELSE NULL
+        END;
+      RAISE NOTICE '[schema] converted listings.user_id from % to uuid', col_type;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE '[schema] could not convert listings.user_id (%): %', col_type, SQLERRM;
+    END;
+  END IF;
+END $$;
+
+-- 4) Re-add FK; fall back to NOT VALID if orphans exist; skip-with-notice on any other failure
+DO $$
+BEGIN
   ALTER TABLE listings
     ADD CONSTRAINT listings_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN others THEN
+    BEGIN
+      ALTER TABLE listings
+        ADD CONSTRAINT listings_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE NOT VALID;
+      RAISE NOTICE '[schema] added listings_user_fk as NOT VALID (legacy orphan rows skipped): %', SQLERRM;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE '[schema] could NOT add listings_user_fk: %', SQLERRM;
+    END;
+END $$;
+
+-- 5) Re-apply NOT NULL (best-effort; skipped if any row still has NULL)
+DO $$ BEGIN
+  ALTER TABLE listings ALTER COLUMN user_id SET NOT NULL;
+EXCEPTION WHEN others THEN
+  RAISE NOTICE '[schema] kept listings.user_id NULLable (legacy rows had non-UUID values): %', SQLERRM;
+END $$;
 
 -- Status check — normalize legacy values first
 UPDATE listings SET status = CASE
@@ -128,21 +178,102 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS campaign_starts_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS campaign_ends_at   TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS created_at         TIMESTAMPTZ NOT NULL DEFAULT now();
 
-DO $$ BEGIN ALTER TABLE orders ALTER COLUMN listing_id      SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE orders ALTER COLUMN advertiser_id   SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE orders ALTER COLUMN price_paid      SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE orders ALTER COLUMN platform_fee    SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE orders ALTER COLUMN seller_earnings SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 
-DO $$ BEGIN
+-- ----------------------------------------------------------------------------
+-- orders.listing_id + orders.advertiser_id FK self-healing
+-- ----------------------------------------------------------------------------
+-- 1) Drop pre-existing FKs (type conversion requires no dependent FK)
+DO $$ BEGIN ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_listing_fk;    EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_advertiser_fk; EXCEPTION WHEN others THEN NULL; END $$;
+
+-- 2) Drop NOT NULL temporarily so bad values can become NULL
+DO $$ BEGIN ALTER TABLE orders ALTER COLUMN listing_id    DROP NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE orders ALTER COLUMN advertiser_id DROP NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
+
+-- 3) Convert column types to UUID if legacy TEXT/varchar
+DO $$
+DECLARE col_type TEXT;
+BEGIN
+  SELECT data_type INTO col_type FROM information_schema.columns
+   WHERE table_schema='public' AND table_name='orders' AND column_name='listing_id';
+  IF col_type IS NOT NULL AND col_type <> 'uuid' THEN
+    BEGIN
+      ALTER TABLE orders
+        ALTER COLUMN listing_id TYPE UUID
+        USING CASE
+          WHEN listing_id IS NULL THEN NULL
+          WHEN listing_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN listing_id::text::uuid
+          ELSE NULL
+        END;
+      RAISE NOTICE '[schema] converted orders.listing_id from % to uuid', col_type;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE '[schema] could not convert orders.listing_id (%): %', col_type, SQLERRM;
+    END;
+  END IF;
+END $$;
+
+DO $$
+DECLARE col_type TEXT;
+BEGIN
+  SELECT data_type INTO col_type FROM information_schema.columns
+   WHERE table_schema='public' AND table_name='orders' AND column_name='advertiser_id';
+  IF col_type IS NOT NULL AND col_type <> 'uuid' THEN
+    BEGIN
+      ALTER TABLE orders
+        ALTER COLUMN advertiser_id TYPE UUID
+        USING CASE
+          WHEN advertiser_id IS NULL THEN NULL
+          WHEN advertiser_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN advertiser_id::text::uuid
+          ELSE NULL
+        END;
+      RAISE NOTICE '[schema] converted orders.advertiser_id from % to uuid', col_type;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE '[schema] could not convert orders.advertiser_id (%): %', col_type, SQLERRM;
+    END;
+  END IF;
+END $$;
+
+-- 4) Re-add FKs (strict → NOT VALID fallback → skip-with-notice)
+DO $$
+BEGIN
   ALTER TABLE orders
     ADD CONSTRAINT orders_listing_fk FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE RESTRICT;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN others THEN
+    BEGIN
+      ALTER TABLE orders
+        ADD CONSTRAINT orders_listing_fk FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE RESTRICT NOT VALID;
+      RAISE NOTICE '[schema] added orders_listing_fk as NOT VALID: %', SQLERRM;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE '[schema] could NOT add orders_listing_fk: %', SQLERRM;
+    END;
+END $$;
 
-DO $$ BEGIN
+DO $$
+BEGIN
   ALTER TABLE orders
     ADD CONSTRAINT orders_advertiser_fk FOREIGN KEY (advertiser_id) REFERENCES users(id) ON DELETE RESTRICT;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN others THEN
+    BEGIN
+      ALTER TABLE orders
+        ADD CONSTRAINT orders_advertiser_fk FOREIGN KEY (advertiser_id) REFERENCES users(id) ON DELETE RESTRICT NOT VALID;
+      RAISE NOTICE '[schema] added orders_advertiser_fk as NOT VALID: %', SQLERRM;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE '[schema] could NOT add orders_advertiser_fk: %', SQLERRM;
+    END;
+END $$;
+
+-- 5) Re-apply NOT NULL (best-effort)
+DO $$ BEGIN ALTER TABLE orders ALTER COLUMN listing_id    SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE orders ALTER COLUMN advertiser_id SET NOT NULL; EXCEPTION WHEN others THEN NULL; END $$;
 
 -- Payment-status check — normalize legacy values first
 UPDATE orders SET payment_status = CASE
