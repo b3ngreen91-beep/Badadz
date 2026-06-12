@@ -51,10 +51,15 @@ router.get(
 
 // Public: categories list
 router.get('/meta/categories', async (_req, res) => {
-  const { rows } = await db.query(
-    `SELECT category, COUNT(*)::int AS count FROM listings WHERE status='active' GROUP BY category ORDER BY count DESC`
-  );
-  res.json({ categories: rows });
+  try {
+    const { rows } = await db.query(
+      `SELECT category, COUNT(*)::int AS count FROM listings WHERE status='active' GROUP BY category ORDER BY count DESC`
+    );
+    res.json({ categories: rows });
+  } catch (err) {
+    console.error('categories error', err);
+    res.status(500).json({ error: 'Failed to load categories' });
+  }
 });
 
 // Public: single listing

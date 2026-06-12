@@ -103,36 +103,46 @@ router.get('/session/:sessionId', authRequired, async (req, res) => {
 
 // Advertiser: my campaigns
 router.get('/my', authRequired, requireRole('advertiser'), async (req, res) => {
-  const { rows } = await db.query(
-    `SELECT o.*, l.website_name, l.website_url, l.image_url, l.category
-     FROM orders o JOIN listings l ON l.id = o.listing_id
-     WHERE o.advertiser_id = $1
-     ORDER BY o.created_at DESC`,
-    [req.user.id]
-  );
-  res.json({ orders: rows });
+  try {
+    const { rows } = await db.query(
+      `SELECT o.*, l.website_name, l.website_url, l.image_url, l.category
+       FROM orders o JOIN listings l ON l.id = o.listing_id
+       WHERE o.advertiser_id = $1
+       ORDER BY o.created_at DESC`,
+      [req.user.id]
+    );
+    res.json({ orders: rows });
+  } catch (err) {
+    console.error('my orders error', err);
+    res.status(500).json({ error: 'Failed to load orders' });
+  }
 });
 
 // Owner: sales / earnings
 router.get('/sales', authRequired, requireRole('owner'), async (req, res) => {
-  const { rows } = await db.query(
-    `SELECT o.*, l.website_name, u.name AS advertiser_name, u.email AS advertiser_email
-     FROM orders o
-     JOIN listings l ON l.id = o.listing_id
-     JOIN users u ON u.id = o.advertiser_id
-     WHERE l.user_id = $1
-     ORDER BY o.created_at DESC`,
-    [req.user.id]
-  );
-  const stats = await db.query(
-    `SELECT
-       COALESCE(SUM(CASE WHEN o.payment_status='paid' THEN o.seller_earnings ELSE 0 END),0)::numeric AS total_earnings,
-       COALESCE(SUM(CASE WHEN o.payment_status='paid' THEN 1 ELSE 0 END),0)::int AS paid_count
-     FROM orders o JOIN listings l ON l.id = o.listing_id
-     WHERE l.user_id = $1`,
-    [req.user.id]
-  );
-  res.json({ orders: rows, stats: stats.rows[0] });
+  try {
+    const { rows } = await db.query(
+      `SELECT o.*, l.website_name, u.name AS advertiser_name, u.email AS advertiser_email
+       FROM orders o
+       JOIN listings l ON l.id = o.listing_id
+       JOIN users u ON u.id = o.advertiser_id
+       WHERE l.user_id = $1
+       ORDER BY o.created_at DESC`,
+      [req.user.id]
+    );
+    const stats = await db.query(
+      `SELECT
+         COALESCE(SUM(CASE WHEN o.payment_status='paid' THEN o.seller_earnings ELSE 0 END),0)::numeric AS total_earnings,
+         COALESCE(SUM(CASE WHEN o.payment_status='paid' THEN 1 ELSE 0 END),0)::int AS paid_count
+       FROM orders o JOIN listings l ON l.id = o.listing_id
+       WHERE l.user_id = $1`,
+      [req.user.id]
+    );
+    res.json({ orders: rows, stats: stats.rows[0] });
+  } catch (err) {
+    console.error('sales error', err);
+    res.status(500).json({ error: 'Failed to load sales' });
+  }
 });
 
 module.exports = router;

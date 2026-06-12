@@ -70,12 +70,17 @@ router.post(
 );
 
 router.get('/me', authRequired, async (req, res) => {
-  const { rows } = await db.query(
-    'SELECT id, name, email, role, created_at FROM users WHERE id = $1',
-    [req.user.id]
-  );
-  if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
-  return res.json({ user: rows[0] });
+  try {
+    const { rows } = await db.query(
+      'SELECT id, name, email, role, created_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    return res.json({ user: rows[0] });
+  } catch (err) {
+    console.error('me error', err);
+    return res.status(500).json({ error: 'Failed to fetch user' });
+  }
 });
 
 router.post('/logout', (_req, res) => {

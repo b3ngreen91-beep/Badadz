@@ -1,0 +1,60 @@
+# Render blueprint for BadAdz.
+# Deploy with: Render Dashboard → New → Blueprint → connect this repo.
+# Render auto-creates the database, backend web service, and frontend static site
+# with the correct Root Directories (this is the fix for the /api/listings 404
+# caused by deploying from the repo root instead of the `backend/` folder).
+
+databases:
+  - name: badadz-db
+    plan: free
+    databaseName: badadz
+    user: badadz
+
+services:
+  # ---------- Backend (Node + Express) ----------
+  - type: web
+    name: badadz-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: yarn install --frozen-lockfile && node src/scripts/initDb.js
+    startCommand: node src/server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: badadz-db
+          property: connectionString
+      - key: PGSSL
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: PLATFORM_FEE_PERCENT
+        value: "20"
+      - key: STRIPE_SECRET_KEY
+        sync: false       # set manually in Render dashboard (sk_test_… / sk_live_…)
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false       # set after creating the Stripe webhook endpoint
+      - key: FRONTEND_URL
+        sync: false       # set to the deployed frontend URL after first deploy
+
+  # ---------- Frontend (React static site) ----------
+  - type: web
+    name: badadz-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: yarn install --frozen-lockfile && yarn build
+    staticPublishPath: ./build
+    pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        sync: false       # set to https://badadz-api.onrender.com after backend is live
