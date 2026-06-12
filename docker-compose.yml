@@ -1,0 +1,20 @@
+version: "3.9"
+
+# Convenience compose for local development.
+# Boots Postgres only — run the backend & frontend with `yarn` separately.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: badadz
+      POSTGRES_PASSWORD: badadz
+      POSTGRES_DB: badadz
+    ports:
+      - "5432:5432"
+    volumes:
+      - badadz_pg:/var/lib/postgresql/data
+
+volumes:
+  badadz_pg:
