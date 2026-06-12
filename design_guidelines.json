@@ -1,0 +1,114 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 4 (Swiss & High-Contrast)",
+  "vibe": "Underground, edgy, high-contrast brutalist SaaS, functional and raw",
+  "colors": {
+    "background": "#050505",
+    "surface": "#121212",
+    "surface_hover": "#1C1C1C",
+    "border": "#2A2A2A",
+    "text_primary": "#F9F9F9",
+    "text_secondary": "#888888",
+    "primary": "#FF3333",
+    "primary_foreground": "#FFFFFF",
+    "accent_yellow": "#FFD700",
+    "accent_green": "#CCFF00"
+  },
+  "typography": {
+    "headings_font": "Unbounded",
+    "body_font": "JetBrains Mono",
+    "weights": {
+      "headings": "font-black",
+      "body": "font-normal",
+      "buttons": "font-bold"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter uppercase",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight uppercase",
+      "h3": "text-xl sm:text-2xl tracking-tight",
+      "body": "text-sm md:text-base leading-relaxed",
+      "labels": "text-xs tracking-[0.2em] uppercase"
+    }
+  },
+  "spacing_and_layout": {
+    "general": "Dense, utilitarian, minimal padding in components, generous padding between sections.",
+    "grid": "Control Room Grid (Dense). grid-cols-1 md:grid-cols-3 lg:grid-cols-4 for marketplace listings. Tight gap (gap-4 or gap-6).",
+    "alignment": "Strict left-alignment for all data and text. Center alignment only for hero headlines.",
+    "borders": "1px solid borders everywhere (border-border). No border-radius (rounded-none). Sharp edges."
+  },
+  "surfaces_and_micro_themes": {
+    "cards": "Flat background (#121212), 1px solid border (#2A2A2A), no shadow. Hover: border color shifts to #FF3333 or #F9F9F9.",
+    "buttons": "Primary buttons: Flat Red (#FF3333) background, no border-radius, pure white text. Hover: darker red or inverted. Secondary: Transparent with 1px white border.",
+    "inputs": "Flat black background (#050505), 1px border (#2A2A2A). Focus: border-red-500, no soft ring.",
+    "header": "Solid black background with a hard 1px bottom border. Not glassmorphic. We want raw and technical."
+  },
+  "motion_and_interactions": {
+    "hover": "Instant or very fast transitions (duration-150). Color shifts from muted to bright.",
+    "focus": "High contrast outlines.",
+    "marquee": "Use a kinetic marquee for marketplace stats or a rebellious slogan (e.g., 'BAD ADS • GOOD TRAFFIC • UNFILTERED REACH')."
+  },
+  "components": {
+    "icons_library": "lucide-react",
+    "navigation": "Top bar, strict flex layout, text links with sharp hover states.",
+    "marketplace_listing_card": "Dense bento box. Image on top (aspect-video, edge-to-edge), metadata stacked below with monospace font, clear price tag in accent color.",
+    "dashboard": "Tables for listings and campaigns. 1px borders between rows. Monospace data."
+  },
+  "media": {
+    "hero_backgrounds": [
+      {
+        "url": "https://images.unsplash.com/photo-1553675559-5046b59a5ca5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwzfHx1bmRlcmdyb3VuZCUyMGhhY2tlciUyMHRlY2glMjBuZW9ufGVufDB8fHx8MTc4MTIyMjQwNnww&ixlib=rb-4.1.0&q=85",
+        "category": "hero_background",
+        "description": "Architectural photography of building tunnel with neon. Use with heavy black/red overlay."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1624676313199-cf349897f716?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwzfHxicnV0YWxpc3QlMjBhcmNoaXRlY3R1cmUlMjBkYXJrfGVufDB8fHx8MTc4MTIyMjQwNnww&ixlib=rb-4.1.0&q=85",
+        "category": "login_background",
+        "description": "Black and white concrete building. Dark brutalist architecture."
+      }
+    ],
+    "listing_banners": [
+      {
+        "url": "https://images.unsplash.com/photo-1648134859175-78b41b4db186?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwNjA2MjJ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjB3ZWJzaXRlJTIwYmFubmVyJTIwYWR8ZW58MHx8fHwxNzgxMjIyNDExfDA&ixlib=rb-4.1.0&q=85",
+        "category": "banner_ad",
+        "description": "Example banner ad image for marketplace listing."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1648134859177-66e35b61e106?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjB3ZWJzaXRlJTIwYmFubmVyJTIwYWR8ZW58MHx8fHwxNzgxMjIyNDExfDA&ixlib=rb-4.1.0&q=85",
+        "category": "banner_ad",
+        "description": "Example banner ad image for marketplace listing."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1648134859186-a05fb609f41e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjB3ZWJzaXRlJTIwYmFubmVyJTIwYWR8ZW58MHx8fHwxNzgxMjIyNDExfDA&ixlib=rb-4.1.0&q=85",
+        "category": "banner_ad",
+        "description": "Example banner ad image for marketplace listing."
+      }
+    ],
+    "avatars": [
+      {
+        "url": "https://images.pexels.com/photos/7832476/pexels-photo-7832476.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "user_avatar",
+        "description": "User profile avatar."
+      },
+      {
+        "url": "https://images.pexels.com/photos/3228830/pexels-photo-3228830.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "user_avatar",
+        "description": "User profile avatar."
+      }
+    ],
+    "logos": [
+      {
+        "url": "https://images.pexels.com/photos/9949424/pexels-photo-9949424.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "sponsor_logo",
+        "description": "Retro tech logo for partners."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Install and import Google Fonts: '@import url(\\'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Unbounded:wght@400;700;900&display=swap\\');'",
+    "Add font families to tailwind.config.js: fontFamily: { unbounded: [\\'Unbounded\\', \\'sans-serif\\'], mono: [\\'JetBrains Mono\\', \\'monospace\\'] }.",
+    "Do NOT use rounded corners anywhere. Strip rounded corners from Shadcn UI. Use 'rounded-none'.",
+    "For the marketplace grid, use a dense grid (grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6).",
+    "Use pure HTML+Tailwind for complex marketing layouts. Customize Shadcn components to remove border radius, soft shadows, and Apple-like glassmorphism.",
+    "Ensure all interactive and key informational elements have 'data-testid' attributes in kebab-case."
+  ]
+}
