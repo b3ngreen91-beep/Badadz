@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth';
 import { LogOut, Plus, LayoutDashboard, Store, Shield } from 'lucide-react';
 
 const linkClass = ({ isActive }) =>
-  `text-xs uppercase tracking-[0.2em] font-bold px-3 py-2 transition-colors duration-150 ${
+  `text-[10px] sm:text-xs uppercase tracking-[0.16em] sm:tracking-[0.2em] font-bold px-2 sm:px-3 py-2 transition-colors duration-150 ${
     isActive ? 'text-primary' : 'text-foreground hover:text-primary'
   }`;
 
@@ -20,49 +20,57 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-black border-b border-border" data-testid="navbar">
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-6 h-16">
-        <Link to="/" className="flex items-center gap-2 group" data-testid="nav-logo">
-          <span className="inline-block w-3 h-3 bg-primary group-hover:bg-acid transition-colors duration-150" />
-          <span className="font-display font-black tracking-tighter text-xl uppercase">
-            Bad<span className="text-primary">Adz</span>
-          </span>
-        </Link>
+      <div className="max-w-7xl mx-auto flex flex-col gap-3 px-4 py-3 sm:px-6 md:h-16 md:flex-row md:items-center md:justify-between md:py-0">
+        <div className="flex items-center justify-between gap-3">
+          <Link to="/" className="flex items-center gap-2 group shrink-0" data-testid="nav-logo">
+            <span className="inline-block w-3 h-3 bg-primary group-hover:bg-acid transition-colors duration-150" />
+            <span className="font-display font-black tracking-tighter text-lg sm:text-xl uppercase">
+              Bad<span className="text-primary">Adz</span>
+            </span>
+          </Link>
 
-        <nav className="hidden md:flex items-center gap-1">
+          {user && (
+            <span className="md:hidden text-[10px] text-muted-foreground uppercase tracking-widest truncate max-w-[180px]" data-testid="nav-user-email-mobile">
+              {user.email} · {user.role}
+            </span>
+          )}
+        </div>
+
+        <nav className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 md:overflow-visible">
           <NavLink to="/" end className={linkClass} data-testid="nav-marketplace">
-            <span className="inline-flex items-center gap-2"><Store size={14}/>Marketplace</span>
+            <span className="inline-flex items-center gap-2 whitespace-nowrap"><Store size={14}/>Marketplace</span>
           </NavLink>
           {user?.role === 'owner' && (
             <>
               <NavLink to="/dashboard/owner" className={linkClass} data-testid="nav-owner-dashboard">
-                <span className="inline-flex items-center gap-2"><LayoutDashboard size={14}/>Dashboard</span>
+                <span className="inline-flex items-center gap-2 whitespace-nowrap"><LayoutDashboard size={14}/>Dashboard</span>
               </NavLink>
               <NavLink to="/listings/new" className={linkClass} data-testid="nav-create-listing">
-                <span className="inline-flex items-center gap-2"><Plus size={14}/>New Listing</span>
+                <span className="inline-flex items-center gap-2 whitespace-nowrap"><Plus size={14}/>New Listing</span>
               </NavLink>
             </>
           )}
           {user?.role === 'advertiser' && (
             <NavLink to="/dashboard/advertiser" className={linkClass} data-testid="nav-advertiser-dashboard">
-              <span className="inline-flex items-center gap-2"><LayoutDashboard size={14}/>My Campaigns</span>
+              <span className="inline-flex items-center gap-2 whitespace-nowrap"><LayoutDashboard size={14}/>My Campaigns</span>
             </NavLink>
           )}
           {isAdmin && (
             <NavLink to="/admin" className={linkClass} data-testid="nav-admin-dashboard">
-              <span className="inline-flex items-center gap-2"><Shield size={14}/>Admin</span>
+              <span className="inline-flex items-center gap-2 whitespace-nowrap"><Shield size={14}/>Admin</span>
             </NavLink>
           )}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 md:justify-end">
           {user ? (
             <>
-              <span className="hidden sm:inline text-xs text-muted-foreground uppercase tracking-widest" data-testid="nav-user-email">
+              <span className="hidden md:inline text-xs text-muted-foreground uppercase tracking-widest max-w-[230px] truncate" data-testid="nav-user-email">
                 {user.email} · {user.role}
               </span>
               <button
                 onClick={() => { logout(); navigate('/'); }}
-                className="border border-border px-3 py-2 text-xs uppercase tracking-[0.2em] font-bold hover:border-primary hover:text-primary transition-colors duration-150 inline-flex items-center gap-2"
+                className="border border-border px-3 py-2 text-[10px] sm:text-xs uppercase tracking-[0.16em] sm:tracking-[0.2em] font-bold hover:border-primary hover:text-primary transition-colors duration-150 inline-flex items-center gap-2"
                 data-testid="nav-logout-btn"
               >
                 <LogOut size={14}/> Logout
