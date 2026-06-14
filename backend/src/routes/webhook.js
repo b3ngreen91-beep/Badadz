@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const { sendCampaignPurchaseEmails } = require('../services/email');
 
 const router = express.Router();
 
@@ -42,6 +43,29 @@ router.post('/', async (req, res) => {
         if (listingId) {
           await db.query(`UPDATE listings SET status='sold' WHERE id=$1`, [listingId]);
         }
+
+        const { rows } = await db.query(
+          `SELECT
+             o.*,
+             l.website_name,
+             l.website_url,
+             l.user_id AS seller_id,
+             seller.name AS seller_name,
+             seller.email AS seller_email,
+             advertiser.name AS advertiser_name,
+             advertiser.email AS advertiser_email
+           FROM orders o
+           JOIN listings l ON l.id = o.listing_id
+           JOIN users seller ON seller.id = l.user_id
+           JOIN users advertiser ON advertiser.id = o.advertiser_id
+           WHERE o.id = $1`,
+          [orderId]
+        );
+
+        if (rows[0]) {
+          await sendCampaignPurchaseEmails(rows[0]);
+        }
+
         console.log(`[stripe] order ${orderId} marked paid`);
       }
     } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
