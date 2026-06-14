@@ -15,7 +15,8 @@ export default function Footer() {
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Platform</div>
-          <ul className="space-y-2 text-sm">
+          <ul className="space-y-2 text-sm font-mono text-muted-foreground">
+            <li><Link className="hover:text-white" to="/how-it-works">How It Works</Link></li>
             <li>Marketplace</li>
             <li>Owner Tools</li>
             <li>Advertiser Tools</li>
