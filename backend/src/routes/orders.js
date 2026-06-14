@@ -6,6 +6,7 @@ const { authRequired, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
 const platformFeePercent = () => Number(process.env.PLATFORM_FEE_PERCENT || 20);
+const FIXED_CAMPAIGN_MONTHS = 1;
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -20,12 +21,14 @@ router.post(
   '/create-checkout-session',
   authRequired,
   requireRole('advertiser'),
-  [body('listing_id').isUUID(), body('months').optional().isInt({ min: 1, max: 12 })],
+  [body('listing_id').isUUID()],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ error: 'Invalid input' });
 
-    const { listing_id, months = 1 } = req.body;
+    const { listing_id } = req.body;
+    const months = FIXED_CAMPAIGN_MONTHS;
+
     try {
       const { rows } = await db.query('SELECT * FROM listings WHERE id = $1', [listing_id]);
       if (rows.length === 0) return res.status(404).json({ error: 'Listing not found' });
@@ -41,7 +44,7 @@ router.post(
       const platform_fee = +(total * fee).toFixed(2);
       const seller_earnings = +(total - platform_fee).toFixed(2);
 
-      // Insert pending order first
+      // Insert pending order first. The webhook marks it paid after Stripe confirms payment.
       const orderInsert = await db.query(
         `INSERT INTO orders (listing_id, advertiser_id, price_paid, platform_fee, seller_earnings, payment_status)
          VALUES ($1,$2,$3,$4,$5,'pending')
@@ -60,7 +63,7 @@ router.post(
             unit_amount: unitAmount,
             product_data: {
               name: `Ad space — ${listing.website_name}`,
-              description: `${months} month(s) banner placement on ${listing.website_url}`,
+              description: '30-day banner placement on ' + listing.website_url,
               images: listing.image_url ? [listing.image_url] : undefined,
             },
           },
