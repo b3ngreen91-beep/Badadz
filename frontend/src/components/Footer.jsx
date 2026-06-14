@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Footer() {
   return (
@@ -22,16 +23,16 @@ export default function Footer() {
           </ul>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">System</div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Legal</div>
           <ul className="space-y-2 text-sm font-mono text-muted-foreground">
-            <li>v1.0 · {new Date().getFullYear()}</li>
-            <li>node + express + pg</li>
-            <li>react + stripe</li>
+            <li><Link className="hover:text-white" to="/terms">Terms of Service</Link></li>
+            <li><Link className="hover:text-white" to="/privacy">Privacy Policy</Link></li>
+            <li><Link className="hover:text-white" to="/refund-policy">Refund Policy</Link></li>
           </ul>
         </div>
       </div>
       <div className="border-t border-border py-4 text-center text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-        © {new Date().getFullYear()} BadAdz · All bad ads reserved
+        © {new Date().getFullYear()} BadAdz · v1.0 · node + express + pg · react + stripe
       </div>
     </footer>
   );
