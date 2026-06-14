@@ -1,16 +1,22 @@
 import React from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { LogOut, Plus, LayoutDashboard, Store } from 'lucide-react';
+import { LogOut, Plus, LayoutDashboard, Store, Shield } from 'lucide-react';
 
 const linkClass = ({ isActive }) =>
   `text-xs uppercase tracking-[0.2em] font-bold px-3 py-2 transition-colors duration-150 ${
     isActive ? 'text-primary' : 'text-foreground hover:text-primary'
   }`;
 
+const ADMIN_EMAILS = (process.env.REACT_APP_ADMIN_EMAILS || 'b3ngreen91@gmail.com')
+  .split(',')
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
   return (
     <header className="sticky top-0 z-50 bg-black border-b border-border" data-testid="navbar">
@@ -39,6 +45,11 @@ export default function Navbar() {
           {user?.role === 'advertiser' && (
             <NavLink to="/dashboard/advertiser" className={linkClass} data-testid="nav-advertiser-dashboard">
               <span className="inline-flex items-center gap-2"><LayoutDashboard size={14}/>My Campaigns</span>
+            </NavLink>
+          )}
+          {isAdmin && (
+            <NavLink to="/admin" className={linkClass} data-testid="nav-admin-dashboard">
+              <span className="inline-flex items-center gap-2"><Shield size={14}/>Admin</span>
             </NavLink>
           )}
         </nav>

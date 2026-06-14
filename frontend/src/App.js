@@ -14,6 +14,7 @@ import CreateListing from './pages/CreateListing';
 import EditListing from './pages/EditListing';
 import OwnerDashboard from './pages/OwnerDashboard';
 import AdvertiserDashboard from './pages/AdvertiserDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import CheckoutResult from './pages/CheckoutResult';
 import NotFound from './pages/NotFound';
 
@@ -40,6 +41,9 @@ function App() {
               } />
               <Route path="/dashboard/advertiser" element={
                 <ProtectedRoute role="advertiser"><AdvertiserDashboard /></ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <ProtectedRoute><AdminDashboard /></ProtectedRoute>
               } />
               <Route path="/checkout/success" element={<CheckoutResult kind="success" />} />
               <Route path="/checkout/cancel" element={<CheckoutResult kind="cancel" />} />
