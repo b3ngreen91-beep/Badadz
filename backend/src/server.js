@@ -9,6 +9,7 @@ const authRouter = require('./routes/auth');
 const listingsRouter = require('./routes/listings');
 const ordersRouter = require('./routes/orders');
 const webhookRouter = require('./routes/webhook');
+const adminRouter = require('./routes/admin');
 const { expireEndedCampaigns } = require('./services/expireCampaigns');
 
 const app = express();
@@ -60,6 +61,7 @@ app.get('/api', (_req, res) => res.json({
     'GET  /api/orders/my',
     'GET  /api/orders/sales',
     'POST /api/orders/webhook',
+    'GET  /api/admin/stats',
   ],
 }));
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'badadz-api' }));
@@ -68,6 +70,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'badadz-
 app.use('/api/auth', authRouter);
 app.use('/api/listings', listingsRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/admin', adminRouter);
 
 // ---- 404 (path-less so it works in Express 4 AND 5) ----
 app.use((req, res) => res.status(404).json({ error: 'Not found', path: req.originalUrl }));
