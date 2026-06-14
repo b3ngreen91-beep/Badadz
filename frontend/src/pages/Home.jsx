@@ -53,12 +53,12 @@ export default function Home() {
         }}
         data-testid="hero"
       >
-        <div className="max-w-7xl mx-auto px-6 py-24 md:py-32 grid grid-cols-1 md:grid-cols-12 gap-8 items-end">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20 md:py-32 grid grid-cols-1 md:grid-cols-12 gap-8 items-end">
           <div className="md:col-span-8 animate-fade-in-up">
-            <div className="text-[10px] uppercase tracking-[0.4em] text-primary font-bold mb-4">
+            <div className="text-[10px] uppercase tracking-[0.3em] sm:tracking-[0.4em] text-primary font-bold mb-4">
               [ MARKETPLACE / V.1 ]
             </div>
-            <h1 className="font-display font-black tracking-tighter uppercase text-4xl sm:text-5xl lg:text-6xl leading-[0.9]">
+            <h1 className="font-display font-black tracking-tighter uppercase text-4xl sm:text-5xl lg:text-6xl leading-[0.9] break-words">
               Sell ad space.<br />
               Buy ad space.<br />
               <span className="text-primary">Skip the agency.</span>
@@ -66,16 +66,16 @@ export default function Home() {
             <p className="mt-6 max-w-xl text-sm md:text-base text-muted-foreground leading-relaxed">
               BadAdz is the no-bullshit marketplace where independent website owners list banner inventory and advertisers buy it directly. 20% platform fee. Stripe payouts. Zero account managers.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <a href="#marketplace" className="bg-primary text-primary-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors" data-testid="hero-browse-btn">
+            <div className="mt-8 grid grid-cols-1 sm:flex sm:flex-wrap gap-3">
+              <a href="#marketplace" className="bg-primary text-primary-foreground px-5 sm:px-6 py-3 text-center text-xs uppercase tracking-[0.24em] sm:tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors" data-testid="hero-browse-btn">
                 Browse Inventory →
               </a>
-              <a href="/register" className="border border-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-foreground hover:text-background transition-colors" data-testid="hero-list-btn">
+              <a href="/register" className="border border-foreground px-5 sm:px-6 py-3 text-center text-xs uppercase tracking-[0.24em] sm:tracking-[0.3em] font-bold hover:bg-foreground hover:text-background transition-colors" data-testid="hero-list-btn">
                 List Your Site
               </a>
             </div>
           </div>
-          <div className="md:col-span-4 grid grid-cols-3 gap-px bg-border border border-border" data-testid="hero-stats">
+          <div className="md:col-span-4 grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 gap-px bg-border border border-border" data-testid="hero-stats">
             <Stat label="Listings" value={stats.total} />
             <Stat label="Avg $/mo" value={`$${stats.avg}`} />
             <Stat label="Top $/mo" value={`$${stats.max}`} />
@@ -86,35 +86,35 @@ export default function Home() {
       <Marquee />
 
       {/* MARKETPLACE */}
-      <section id="marketplace" className="max-w-7xl mx-auto px-6 py-16">
-        <div className="flex items-end justify-between mb-8">
+      <section id="marketplace" className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.4em] text-muted-foreground mb-2">[ 01 / Inventory ]</div>
+            <div className="text-[10px] uppercase tracking-[0.32em] sm:tracking-[0.4em] text-muted-foreground mb-2">[ 01 / Inventory ]</div>
             <h2 className="font-display font-black uppercase text-2xl sm:text-3xl lg:text-4xl tracking-tight">
               Live Marketplace
             </h2>
           </div>
-          <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-[0.2em]">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-[0.2em]">
             <SlidersHorizontal size={14}/> {listings.length} placements
           </div>
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-8 border border-border p-4 bg-card" data-testid="filters">
-          <div className="md:col-span-5 relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 mb-8 border border-border p-4 bg-card" data-testid="filters">
+          <div className="sm:col-span-2 md:col-span-5 relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name or category…"
-              className="w-full bg-background border border-border pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-primary"
+              className="w-full bg-background border border-border pl-9 pr-3 py-3 md:py-2 text-sm focus:outline-none focus:border-primary"
               data-testid="filter-search"
             />
           </div>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="md:col-span-3 bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary"
+            className="sm:col-span-2 md:col-span-3 bg-background border border-border px-3 py-3 md:py-2 text-sm focus:outline-none focus:border-primary"
             data-testid="filter-category"
           >
             <option value="">All categories</option>
@@ -127,7 +127,7 @@ export default function Home() {
             placeholder="Min $"
             value={minPrice}
             onChange={(e) => setMinPrice(e.target.value)}
-            className="md:col-span-2 bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary"
+            className="md:col-span-2 bg-background border border-border px-3 py-3 md:py-2 text-sm focus:outline-none focus:border-primary"
             data-testid="filter-min-price"
           />
           <input
@@ -135,7 +135,7 @@ export default function Home() {
             placeholder="Max $"
             value={maxPrice}
             onChange={(e) => setMaxPrice(e.target.value)}
-            className="md:col-span-2 bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary"
+            className="md:col-span-2 bg-background border border-border px-3 py-3 md:py-2 text-sm focus:outline-none focus:border-primary"
             data-testid="filter-max-price"
           />
         </div>
@@ -148,7 +148,7 @@ export default function Home() {
             <p className="text-muted-foreground text-sm mt-2">Adjust filters or check back later.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6" data-testid="listings-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" data-testid="listings-grid">
             {listings.map((l) => <ListingCard key={l.id} listing={l} />)}
           </div>
         )}
