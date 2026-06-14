@@ -16,6 +16,9 @@ import OwnerDashboard from './pages/OwnerDashboard';
 import AdvertiserDashboard from './pages/AdvertiserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import CheckoutResult from './pages/CheckoutResult';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
+import RefundPolicy from './pages/RefundPolicy';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -29,6 +32,9 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/refund-policy" element={<RefundPolicy />} />
               <Route path="/listings/new" element={
                 <ProtectedRoute role="owner"><CreateListing /></ProtectedRoute>
               } />
