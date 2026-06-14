@@ -9,6 +9,7 @@ const authRouter = require('./routes/auth');
 const listingsRouter = require('./routes/listings');
 const ordersRouter = require('./routes/orders');
 const webhookRouter = require('./routes/webhook');
+const { expireEndedCampaigns } = require('./services/expireCampaigns');
 
 const app = express();
 app.disable('x-powered-by');
@@ -116,6 +117,10 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`╚══════════════════════════════════════════════════════════════╝`);
   console.log('Registered routes:');
   printRoutes(app).forEach((l) => console.log(l));
+
+  expireEndedCampaigns().catch((err) => {
+    console.error('[campaigns] Startup expiration check failed:', err);
+  });
 });
 
 // Graceful shutdown — important on Render redeploys
