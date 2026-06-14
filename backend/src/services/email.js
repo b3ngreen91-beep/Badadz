@@ -59,6 +59,7 @@ function date(value) {
 
 async function sendCampaignPurchaseEmails(order) {
   const frontend = getFrontendUrl();
+  const howItWorksUrl = `${frontend}/how-it-works`;
 
   const buyerSubject = `BadAdz purchase confirmed: ${order.website_name}`;
   const sellerSubject = `Your BadAdz listing sold: ${order.website_name}`;
@@ -71,6 +72,12 @@ async function sendCampaignPurchaseEmails(order) {
     `Campaign start: ${date(order.campaign_starts_at)}`,
     `Campaign end: ${date(order.campaign_ends_at)}`,
     `Seller contact: ${order.seller_email || 'Not available'}`,
+    ``,
+    `Next steps:`,
+    `1. Send the seller your banner image, destination URL, and any instructions.`,
+    `2. The seller is responsible for adding the ad to their website.`,
+    `3. Your placement should remain live for the full 30-day campaign.`,
+    `Learn more: ${howItWorksUrl}`,
     `View your campaigns: ${frontend}`,
   ].join('\n');
 
@@ -84,6 +91,16 @@ async function sendCampaignPurchaseEmails(order) {
     `Platform fee: ${money(order.platform_fee)}`,
     `Campaign start: ${date(order.campaign_starts_at)}`,
     `Campaign end: ${date(order.campaign_ends_at)}`,
+    ``,
+    `Next steps:`,
+    `1. Contact the advertiser if needed.`,
+    `2. Ask for their banner image, destination URL, and any placement instructions.`,
+    `3. Add the banner ad to your website.`,
+    `4. Keep it live for the full 30-day campaign.`,
+    `5. After 30 days, BadAdz will make the placement available again.`,
+    ``,
+    `BadAdz handles payment and campaign tracking. The website owner is responsible for placing the ad on their website.`,
+    `Learn more: ${howItWorksUrl}`,
     `View your sales: ${frontend}`,
   ].join('\n');
 
@@ -98,6 +115,13 @@ async function sendCampaignPurchaseEmails(order) {
       <li><strong>Campaign end:</strong> ${date(order.campaign_ends_at)}</li>
       <li><strong>Seller contact:</strong> ${order.seller_email || 'Not available'}</li>
     </ul>
+    <h3>Next steps</h3>
+    <ol>
+      <li>Send the seller your banner image, destination URL, and any instructions.</li>
+      <li>The seller is responsible for adding the ad to their website.</li>
+      <li>Your placement should remain live for the full 30-day campaign.</li>
+    </ol>
+    <p><a href="${howItWorksUrl}">Read how BadAdz works</a></p>
     <p><a href="${frontend}">Open BadAdz</a></p>
   `;
 
@@ -114,6 +138,16 @@ async function sendCampaignPurchaseEmails(order) {
       <li><strong>Campaign start:</strong> ${date(order.campaign_starts_at)}</li>
       <li><strong>Campaign end:</strong> ${date(order.campaign_ends_at)}</li>
     </ul>
+    <h3>Next steps</h3>
+    <ol>
+      <li>Contact the advertiser if needed.</li>
+      <li>Ask for their banner image, destination URL, and any placement instructions.</li>
+      <li>Add the banner ad to your website.</li>
+      <li>Keep it live for the full 30-day campaign.</li>
+      <li>After 30 days, BadAdz will make the placement available again.</li>
+    </ol>
+    <p><strong>Important:</strong> BadAdz handles payment and campaign tracking. The website owner is responsible for placing the ad on their website.</p>
+    <p><a href="${howItWorksUrl}">Read how BadAdz works</a></p>
     <p><a href="${frontend}">Open BadAdz</a></p>
   `;
 

@@ -19,6 +19,7 @@ import CheckoutResult from './pages/CheckoutResult';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import RefundPolicy from './pages/RefundPolicy';
+import HowItWorks from './pages/HowItWorks';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />
