@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import api from '../lib/api';
 import ListingCard from '../components/ListingCard';
 import Marquee from '../components/Marquee';
-import { Search, SlidersHorizontal, ShieldCheck, CreditCard, Mail, CalendarDays, Percent } from 'lucide-react';
+import { Search, SlidersHorizontal, CreditCard, Mail, CalendarDays, Percent } from 'lucide-react';
 
 const HERO_BG = 'https://images.unsplash.com/photo-1553675559-5046b59a5ca5?crop=entropy&cs=srgb&fm=jpg&w=1920&q=80';
 
@@ -92,38 +92,11 @@ export default function Home() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-px bg-border border border-border">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border border border-border">
           <TrustCard icon={<CreditCard size={18} />} title="Stripe Payments" text="Checkout runs through Stripe so payments are tracked before campaigns start." />
           <TrustCard icon={<Mail size={18} />} title="Owner Contact" text="Advertisers get the website owner's contact info after purchase." />
           <TrustCard icon={<CalendarDays size={18} />} title="30-Day Campaigns" text="Each placement is tracked as a fixed 30-day banner campaign." />
           <TrustCard icon={<Percent size={18} />} title="Transparent Fee" text="BadAdz takes 20%. Sellers keep 80%. No hidden platform math." />
-          <TrustCard icon={<ShieldCheck size={18} />} title="No Subscription" text="List and buy placements without monthly subscription fees." />
-        </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16 border-b border-border" data-testid="how-it-works-section">
-        <div className="mb-8">
-          <div className="text-[10px] uppercase tracking-[0.32em] sm:tracking-[0.4em] text-muted-foreground mb-2">[ 00 / How It Works ]</div>
-          <h2 className="font-display font-black uppercase text-2xl sm:text-3xl lg:text-4xl tracking-tight">
-            From listing to live ad.
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm text-muted-foreground leading-relaxed">
-            BadAdz keeps the buying process simple: list the space, pay through Stripe, connect directly, and run the banner for 30 days.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-px bg-border border border-border">
-          <HowStep number="01" title="Owners list space" text="Website owners create a listing for available banner ad space and set the monthly price." />
-          <HowStep number="02" title="Advertisers buy" text="Advertisers choose a placement and purchase a 30-day campaign through Stripe Checkout." />
-          <HowStep number="03" title="Contact is shared" text="After payment, the advertiser sees the website owner's contact info on the success page and dashboard." />
-          <HowStep number="04" title="Banner goes live" text="The advertiser sends their banner image and destination URL. The owner places it on their website." />
-          <HowStep number="05" title="Revenue is split" text="The seller keeps 80% of the sale. BadAdz keeps a transparent 20% platform fee." />
-        </div>
-
-        <div className="mt-6">
-          <a href="/how-it-works" className="inline-block border border-border px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:border-primary hover:text-primary transition-colors">
-            Read full guide →
-          </a>
         </div>
       </section>
 
@@ -210,16 +183,6 @@ function TrustCard({ icon, title, text }) {
   return (
     <div className="bg-background p-5">
       <div className="text-primary mb-3">{icon}</div>
-      <h3 className="font-display font-black uppercase text-lg tracking-tight mb-2">{title}</h3>
-      <p className="text-xs text-muted-foreground leading-relaxed">{text}</p>
-    </div>
-  );
-}
-
-function HowStep({ number, title, text }) {
-  return (
-    <div className="bg-background p-5">
-      <div className="font-mono text-primary text-xs mb-3">{number}</div>
       <h3 className="font-display font-black uppercase text-lg tracking-tight mb-2">{title}</h3>
       <p className="text-xs text-muted-foreground leading-relaxed">{text}</p>
     </div>
