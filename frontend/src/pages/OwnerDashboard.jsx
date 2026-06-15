@@ -39,8 +39,15 @@ export default function OwnerDashboard() {
     }
   };
 
+  const paidOrders = salesData.orders.filter(o => o.payment_status === 'paid');
   const activeCount = listings.filter(l => l.status === 'active').length;
   const soldCount = listings.filter(l => l.status === 'sold').length;
+  const pausedCount = listings.filter(l => l.status === 'paused').length;
+  const totalSales = paidOrders.reduce((sum, o) => sum + Number(o.price_paid || 0), 0);
+  const totalFees = paidOrders.reduce((sum, o) => sum + Number(o.platform_fee || 0), 0);
+  const totalEarnings = paidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
+  const activeCampaigns = paidOrders.filter(o => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
+  const completedCampaigns = paidOrders.filter(o => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12" data-testid="owner-dashboard">
@@ -54,18 +61,24 @@ export default function OwnerDashboard() {
         </Link>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-12" data-testid="owner-stats">
-        <Stat label="Active Listings" value={activeCount} />
-        <Stat label="Sold Out" value={soldCount} />
-        <Stat label="Paid Orders" value={salesData.stats.paid_count} />
-        <Stat label="Total Earnings" value={`$${Number(salesData.stats.total_earnings).toLocaleString()}`} highlight />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-8" data-testid="owner-revenue-stats">
+        <Stat label="Total Sales" value={`$${totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+        <Stat label="Platform Fees" value={`$${totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+        <Stat label="Your Earnings" value={`$${totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} highlight />
+        <Stat label="Paid Orders" value={paidOrders.length} />
       </div>
 
-      {/* Listings table */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-border border border-border mb-12" data-testid="owner-listing-stats">
+        <Stat label="Active Listings" value={activeCount} />
+        <Stat label="Sold Listings" value={soldCount} />
+        <Stat label="Paused Listings" value={pausedCount} />
+        <Stat label="Active Campaigns" value={activeCampaigns} highlight />
+        <Stat label="Completed" value={completedCampaigns} />
+      </div>
+
       <h2 className="font-display font-black uppercase text-xl tracking-tight mb-4">My Listings</h2>
       {loading ? (
-        <div className="text-muted-foreground text-xs uppercase tracking-[0.3em] py-12">Loading…</div>
+        <div className="text-muted-foreground text-xs uppercase tracking-[0.3em] py-12">Loading...</div>
       ) : listings.length === 0 ? (
         <div className="border border-border p-12 text-center">
           <p className="text-muted-foreground text-sm">No listings yet.</p>
@@ -109,7 +122,6 @@ export default function OwnerDashboard() {
         </div>
       )}
 
-      {/* Sales */}
       <h2 className="font-display font-black uppercase text-xl tracking-tight mt-12 mb-4">Sales History</h2>
       {salesData.orders.length === 0 ? (
         <div className="border border-border p-12 text-center text-sm text-muted-foreground" data-testid="owner-no-sales">No sales yet.</div>
@@ -153,7 +165,7 @@ function Stat({ label, value, highlight }) {
   return (
     <div className="bg-background p-5">
       <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">{label}</div>
-      <div className={`font-display font-black text-3xl mt-2 ${highlight ? 'text-acid' : 'text-foreground'}`}>{value}</div>
+      <div className={`font-display font-black text-2xl sm:text-3xl mt-2 ${highlight ? 'text-acid' : 'text-foreground'}`}>{value}</div>
     </div>
   );
 }
