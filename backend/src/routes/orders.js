@@ -116,8 +116,17 @@ router.get('/session/:sessionId', authRequired, async (req, res) => {
 router.get('/my', authRequired, requireRole('advertiser'), async (req, res) => {
   try {
     const { rows } = await db.query(
-      `SELECT o.*, l.website_name, l.website_url, l.image_url, l.category
-       FROM orders o JOIN listings l ON l.id = o.listing_id
+      `SELECT
+         o.*,
+         l.website_name,
+         l.website_url,
+         l.image_url,
+         l.category,
+         owner.name AS owner_name,
+         owner.email AS owner_email
+       FROM orders o
+       JOIN listings l ON l.id = o.listing_id
+       JOIN users owner ON owner.id = l.user_id
        WHERE o.advertiser_id = $1
        ORDER BY o.created_at DESC`,
       [req.user.id]
