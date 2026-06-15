@@ -101,6 +101,32 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16 border-b border-border" data-testid="how-it-works-section">
+        <div className="mb-8">
+          <div className="text-[10px] uppercase tracking-[0.32em] sm:tracking-[0.4em] text-muted-foreground mb-2">[ 00 / How It Works ]</div>
+          <h2 className="font-display font-black uppercase text-2xl sm:text-3xl lg:text-4xl tracking-tight">
+            From listing to live ad.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm text-muted-foreground leading-relaxed">
+            BadAdz keeps the buying process simple: list the space, pay through Stripe, connect directly, and run the banner for 30 days.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-px bg-border border border-border">
+          <HowStep number="01" title="Owners list space" text="Website owners create a listing for available banner ad space and set the monthly price." />
+          <HowStep number="02" title="Advertisers buy" text="Advertisers choose a placement and purchase a 30-day campaign through Stripe Checkout." />
+          <HowStep number="03" title="Contact is shared" text="After payment, the advertiser sees the website owner's contact info on the success page and dashboard." />
+          <HowStep number="04" title="Banner goes live" text="The advertiser sends their banner image and destination URL. The owner places it on their website." />
+          <HowStep number="05" title="Revenue is split" text="The seller keeps 80% of the sale. BadAdz keeps a transparent 20% platform fee." />
+        </div>
+
+        <div className="mt-6">
+          <a href="/how-it-works" className="inline-block border border-border px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:border-primary hover:text-primary transition-colors">
+            Read full guide →
+          </a>
+        </div>
+      </section>
+
       <section id="marketplace" className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8">
           <div>
@@ -184,6 +210,16 @@ function TrustCard({ icon, title, text }) {
   return (
     <div className="bg-background p-5">
       <div className="text-primary mb-3">{icon}</div>
+      <h3 className="font-display font-black uppercase text-lg tracking-tight mb-2">{title}</h3>
+      <p className="text-xs text-muted-foreground leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
+function HowStep({ number, title, text }) {
+  return (
+    <div className="bg-background p-5">
+      <div className="font-mono text-primary text-xs mb-3">{number}</div>
       <h3 className="font-display font-black uppercase text-lg tracking-tight mb-2">{title}</h3>
       <p className="text-xs text-muted-foreground leading-relaxed">{text}</p>
     </div>
