@@ -93,8 +93,16 @@ router.get('/session/:sessionId', authRequired, async (req, res) => {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
     const { rows } = await db.query(
-      `SELECT o.*, l.website_name, l.website_url, l.image_url
-       FROM orders o JOIN listings l ON l.id = o.listing_id
+      `SELECT
+         o.*,
+         l.website_name,
+         l.website_url,
+         l.image_url,
+         owner.name AS owner_name,
+         owner.email AS owner_email
+       FROM orders o
+       JOIN listings l ON l.id = o.listing_id
+       JOIN users owner ON owner.id = l.user_id
        WHERE o.stripe_session_id = $1`,
       [session.id]
     );
