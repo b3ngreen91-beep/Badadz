@@ -157,8 +157,14 @@ export default function Home() {
           <div className="text-center py-16 text-muted-foreground text-xs uppercase tracking-[0.3em]">Loading inventory...</div>
         ) : listings.length === 0 ? (
           <div className="text-center py-16 border border-border" data-testid="empty-state">
-            <div className="font-display font-black text-2xl uppercase">No listings match.</div>
-            <p className="text-muted-foreground text-sm mt-2">Adjust filters or check back later.</p>
+            <div className="font-display font-black text-2xl uppercase">No Active Listings Right Now</div>
+            <p className="text-muted-foreground text-sm mt-4">Be the first website owner to list banner inventory on BadAdz.</p>
+            <a
+              href="/register"
+              className="inline-block mt-6 bg-primary text-primary-foreground px-6 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors"
+            >
+              List Your Site →
+            </a>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" data-testid="listings-grid">
