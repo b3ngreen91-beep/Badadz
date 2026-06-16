@@ -17,7 +17,6 @@ export default function OwnerDashboard() {
   const load = async () => {
     if (!user?.id) return;
     setLoading(true);
-
     try {
       const [listingsResult, salesResult, connectResult] = await Promise.allSettled([
         api.get('/listings', { params: { owner_id: user.id, include_inactive: true } }),
@@ -27,12 +26,8 @@ export default function OwnerDashboard() {
 
       if (listingsResult.status === 'fulfilled') setListings(listingsResult.value.data.listings || []);
       if (salesResult.status === 'fulfilled') setSalesData(salesResult.value.data || { orders: [], stats: { total_earnings: 0, paid_count: 0 } });
-      if (connectResult.status === 'fulfilled') {
-        setConnectStatus(connectResult.value.data || { onboarding_complete: false });
-      } else {
-        console.error('connect status failed', connectResult.reason);
-        setConnectStatus({ onboarding_complete: false, status_check_failed: true });
-      }
+      if (connectResult.status === 'fulfilled') setConnectStatus(connectResult.value.data || { onboarding_complete: false });
+      else setConnectStatus({ onboarding_complete: false, status_check_failed: true });
     } finally {
       setLoading(false);
     }
@@ -54,10 +49,10 @@ export default function OwnerDashboard() {
     }
   };
 
-  const toggleStatus = async (l) => {
-    const next = l.status === 'active' ? 'paused' : 'active';
+  const toggleStatus = async (listing) => {
+    const next = listing.status === 'active' ? 'paused' : 'active';
     try {
-      await api.put(`/listings/${l.id}`, { status: next });
+      await api.put(`/listings/${listing.id}`, { status: next });
       toast.success(`Listing ${next}`);
       load();
     } catch (e) {
@@ -79,9 +74,7 @@ export default function OwnerDashboard() {
   };
 
   const denyOrder = async (order) => {
-    const confirmed = window.confirm('Deny this ad purchase and refund the advertiser?');
-    if (!confirmed) return;
-
+    if (!window.confirm('Deny this ad purchase and refund the advertiser?')) return;
     setActionBusy(`deny-${order.id}`);
     try {
       await api.post(`/orders/${order.id}/deny`, { reason: 'Denied by website owner' });
@@ -94,16 +87,16 @@ export default function OwnerDashboard() {
     }
   };
 
-  const approvedPaidOrders = salesData.orders.filter(o => o.payment_status === 'paid' && o.approval_status === 'approved');
-  const pendingApprovalOrders = salesData.orders.filter(o => o.payment_status === 'paid' && o.approval_status === 'pending');
-  const activeCount = listings.filter(l => l.status === 'active').length;
-  const soldCount = listings.filter(l => l.status === 'sold').length;
-  const pausedCount = listings.filter(l => l.status === 'paused').length;
+  const approvedPaidOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && o.approval_status === 'approved');
+  const pendingApprovalOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && o.approval_status === 'pending');
+  const activeCount = listings.filter((l) => l.status === 'active').length;
+  const soldCount = listings.filter((l) => l.status === 'sold').length;
+  const pausedCount = listings.filter((l) => l.status === 'paused').length;
   const totalSales = approvedPaidOrders.reduce((sum, o) => sum + Number(o.price_paid || 0), 0);
   const totalFees = approvedPaidOrders.reduce((sum, o) => sum + Number(o.platform_fee || 0), 0);
   const totalEarnings = approvedPaidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
-  const activeCampaigns = approvedPaidOrders.filter(o => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
-  const completedCampaigns = approvedPaidOrders.filter(o => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
+  const activeCampaigns = approvedPaidOrders.filter((o) => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
+  const completedCampaigns = approvedPaidOrders.filter((o) => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
   const stripeConnected = Boolean(connectStatus?.onboarding_complete);
 
   return (
@@ -123,6 +116,28 @@ export default function OwnerDashboard() {
           </button>
         )}
       </div>
+
+      <section className="mb-10" data-testid="owner-ad-requests-section">
+        <div className={`border p-5 sm:p-6 mb-4 ${pendingApprovalOrders.length > 0 ? 'border-gold bg-gold/10' : 'border-border bg-card'}`}>
+          <div className={`text-[10px] uppercase tracking-[0.3em] font-bold mb-2 ${pendingApprovalOrders.length > 0 ? 'text-gold' : 'text-muted-foreground'}`}>Ad requests</div>
+          <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight">
+            {pendingApprovalOrders.length > 0 ? `${pendingApprovalOrders.length} ad request${pendingApprovalOrders.length === 1 ? '' : 's'} waiting for review.` : 'No ad requests waiting.'}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-3">
+            {pendingApprovalOrders.length > 0
+              ? 'Review each submitted banner, destination URL, and advertiser note before approving. Denying automatically starts the Stripe refund when money was charged.'
+              : 'Paid ad requests will appear here first with banner previews and approve/deny buttons.'}
+          </p>
+        </div>
+
+        {pendingApprovalOrders.length > 0 && (
+          <div className="space-y-4">
+            {pendingApprovalOrders.map((order) => (
+              <PendingReviewCard key={order.id} order={order} actionBusy={actionBusy} approveOrder={approveOrder} denyOrder={denyOrder} />
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className={`border p-5 sm:p-6 mb-8 ${stripeConnected ? 'border-acid bg-acid/5' : 'border-primary bg-primary/10'}`} data-testid="owner-stripe-connect-card">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -146,28 +161,6 @@ export default function OwnerDashboard() {
           )}
         </div>
       </div>
-
-      {pendingApprovalOrders.length > 0 && (
-        <section className="mb-10" data-testid="owner-pending-review-section">
-          <div className="border border-gold bg-gold/10 p-5 sm:p-6 mb-4" data-testid="owner-pending-approval-card">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gold font-bold mb-2">Owner approval needed</div>
-            <h2 className="font-display font-black uppercase text-2xl tracking-tight">{pendingApprovalOrders.length} paid ad request{pendingApprovalOrders.length === 1 ? '' : 's'} waiting.</h2>
-            <p className="text-sm text-muted-foreground mt-3">Review the submitted ad creatives below. Approving starts the campaign. Denying attempts to refund the advertiser through Stripe.</p>
-          </div>
-
-          <div className="space-y-4">
-            {pendingApprovalOrders.map((order) => (
-              <PendingReviewCard
-                key={order.id}
-                order={order}
-                actionBusy={actionBusy}
-                approveOrder={approveOrder}
-                denyOrder={denyOrder}
-              />
-            ))}
-          </div>
-        </section>
-      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-8" data-testid="owner-revenue-stats">
         <Stat label="Approved Sales" value={`$${totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
@@ -193,17 +186,13 @@ export default function OwnerDashboard() {
           {stripeConnected ? (
             <Link to="/listings/new" className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em]">Create your first listing →</Link>
           ) : (
-            <button onClick={startStripeConnect} disabled={connecting} className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em] disabled:opacity-60">
-              Connect Stripe before listing →
-            </button>
+            <button onClick={startStripeConnect} disabled={connecting} className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em] disabled:opacity-60">Connect Stripe before listing →</button>
           )}
         </div>
       ) : (
         <div data-testid="owner-listings-table">
           <div className="md:hidden space-y-4">
-            {listings.map((l) => (
-              <ListingCard key={l.id} listing={l} toggleStatus={toggleStatus} />
-            ))}
+            {listings.map((listing) => <ListingCard key={listing.id} listing={listing} toggleStatus={toggleStatus} />)}
           </div>
 
           <div className="hidden md:block border border-border bg-card overflow-x-auto">
@@ -218,19 +207,19 @@ export default function OwnerDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {listings.map((l) => (
-                  <tr key={l.id} className="border-b border-border last:border-b-0">
-                    <td className="p-3"><Link to={`/listings/${l.id}`} className="hover:text-primary">{l.website_name}</Link></td>
-                    <td className="p-3 text-muted-foreground">{l.category}</td>
-                    <td className="p-3 text-right font-mono">${Number(l.monthly_price).toLocaleString()}</td>
-                    <td className="p-3"><StatusBadge status={l.status} /></td>
+                {listings.map((listing) => (
+                  <tr key={listing.id} className="border-b border-border last:border-b-0">
+                    <td className="p-3"><Link to={`/listings/${listing.id}`} className="hover:text-primary">{listing.website_name}</Link></td>
+                    <td className="p-3 text-muted-foreground">{listing.category}</td>
+                    <td className="p-3 text-right font-mono">${Number(listing.monthly_price).toLocaleString()}</td>
+                    <td className="p-3"><StatusBadge status={listing.status} /></td>
                     <td className="p-3 text-right space-x-2">
-                      {l.status !== 'sold' && (
-                        <button onClick={() => toggleStatus(l)} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${l.id}`}>
-                          {l.status === 'active' ? <><Pause size={10}/> Pause</> : <><Play size={10}/> Activate</>}
+                      {listing.status !== 'sold' && (
+                        <button onClick={() => toggleStatus(listing)} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${listing.id}`}>
+                          {listing.status === 'active' ? <><Pause size={10}/> Pause</> : <><Play size={10}/> Activate</>}
                         </button>
                       )}
-                      <Link to={`/listings/${l.id}/edit`} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`edit-${l.id}`}>
+                      <Link to={`/listings/${listing.id}/edit`} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`edit-${listing.id}`}>
                         <Edit3 size={10}/> Edit
                       </Link>
                     </td>
@@ -262,29 +251,23 @@ export default function OwnerDashboard() {
               </tr>
             </thead>
             <tbody>
-              {salesData.orders.map((o) => (
-                <tr key={o.id} className="border-b border-border last:border-b-0">
-                  <td className="p-3 font-mono text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString()}</td>
-                  <td className="p-3">{o.website_name}</td>
-                  <td className="p-3 text-muted-foreground">{o.advertiser_name}<br/><span className="text-xs">{o.advertiser_email}</span></td>
-                  <td className="p-3 text-right font-mono">${Number(o.price_paid).toFixed(2)}</td>
-                  <td className="p-3 text-right font-mono text-muted-foreground">${Number(o.platform_fee).toFixed(2)}</td>
-                  <td className="p-3 text-right font-mono text-acid">${Number(o.seller_earnings).toFixed(2)}</td>
-                  <td className="p-3"><span className={`text-[10px] uppercase tracking-[0.2em] font-bold ${o.payment_status==='paid'?'text-acid':o.payment_status==='refunded'?'text-primary':'text-gold'}`}>● {o.payment_status}</span></td>
-                  <td className="p-3"><span className={`text-[10px] uppercase tracking-[0.2em] font-bold ${o.approval_status==='approved'?'text-acid':o.approval_status==='denied'?'text-primary':o.approval_status==='pending'?'text-gold':'text-muted-foreground'}`}>● {o.approval_status || 'awaiting_payment'}</span></td>
+              {salesData.orders.map((order) => (
+                <tr key={order.id} className="border-b border-border last:border-b-0">
+                  <td className="p-3 font-mono text-xs text-muted-foreground">{new Date(order.created_at).toLocaleDateString()}</td>
+                  <td className="p-3">{order.website_name}</td>
+                  <td className="p-3 text-muted-foreground">{order.advertiser_name}<br/><span className="text-xs">{order.advertiser_email}</span></td>
+                  <td className="p-3 text-right font-mono">${Number(order.price_paid || 0).toFixed(2)}</td>
+                  <td className="p-3 text-right font-mono text-muted-foreground">${Number(order.platform_fee || 0).toFixed(2)}</td>
+                  <td className="p-3 text-right font-mono text-acid">${Number(order.seller_earnings || 0).toFixed(2)}</td>
+                  <td className="p-3"><StatusText value={order.payment_status} /></td>
+                  <td className="p-3"><StatusText value={order.approval_status || 'awaiting_payment'} /></td>
                   <td className="p-3 text-right">
-                    {o.payment_status === 'paid' && o.approval_status === 'pending' ? (
+                    {order.payment_status === 'paid' && order.approval_status === 'pending' ? (
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => approveOrder(o)} disabled={Boolean(actionBusy)} className="border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">
-                          {actionBusy === `approve-${o.id}` ? 'Approving...' : 'Approve'}
-                        </button>
-                        <button onClick={() => denyOrder(o)} disabled={Boolean(actionBusy)} className="border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">
-                          {actionBusy === `deny-${o.id}` ? 'Denying...' : 'Deny'}
-                        </button>
+                        <button onClick={() => approveOrder(order)} disabled={Boolean(actionBusy)} className="border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">Approve</button>
+                        <button onClick={() => denyOrder(order)} disabled={Boolean(actionBusy)} className="border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">Deny</button>
                       </div>
-                    ) : (
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">—</span>
-                    )}
+                    ) : <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">—</span>}
                   </td>
                 </tr>
               ))}
@@ -300,16 +283,14 @@ function PendingReviewCard({ order, actionBusy, approveOrder, denyOrder }) {
   const creatives = Array.isArray(order.creatives) ? order.creatives : [];
 
   return (
-    <div className="border border-border bg-card p-5" data-testid={`pending-review-${order.id}`}>
+    <div className="border border-gold bg-card p-5" data-testid={`pending-review-${order.id}`}>
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 border-b border-border pb-4 mb-4">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-gold mb-2">Paid · Pending owner approval</div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-gold mb-2">Paid · awaiting your approval</div>
           <h3 className="font-display font-black uppercase text-2xl tracking-tight">{order.website_name}</h3>
           <p className="text-sm text-muted-foreground mt-2">Advertiser: <span className="text-foreground">{order.advertiser_name || 'Advertiser'}</span></p>
           <p className="text-sm text-muted-foreground break-all">Email: <span className="text-foreground">{order.advertiser_email}</span></p>
-          {order.destination_url && (
-            <p className="text-sm text-muted-foreground break-all mt-2">Destination: <a href={order.destination_url} target="_blank" rel="noreferrer" className="text-primary hover:text-acid">{order.destination_url}</a></p>
-          )}
+          {order.destination_url && <p className="text-sm text-muted-foreground break-all mt-2">Destination: <a href={order.destination_url} target="_blank" rel="noreferrer" className="text-primary hover:text-acid">{order.destination_url}</a></p>}
         </div>
         <div className="lg:text-right">
           <div className="font-mono text-xl">${Number(order.price_paid || 0).toFixed(2)}</div>
@@ -343,18 +324,10 @@ function PendingReviewCard({ order, actionBusy, approveOrder, denyOrder }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button
-          onClick={() => approveOrder(order)}
-          disabled={Boolean(actionBusy)}
-          className="border border-acid text-acid py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black disabled:opacity-60"
-        >
+        <button onClick={() => approveOrder(order)} disabled={Boolean(actionBusy)} className="border border-acid text-acid py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black disabled:opacity-60">
           {actionBusy === `approve-${order.id}` ? 'Approving...' : 'Approve Ad'}
         </button>
-        <button
-          onClick={() => denyOrder(order)}
-          disabled={Boolean(actionBusy)}
-          className="border border-primary text-primary py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-primary hover:text-primary-foreground disabled:opacity-60"
-        >
+        <button onClick={() => denyOrder(order)} disabled={Boolean(actionBusy)} className="border border-primary text-primary py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-primary hover:text-primary-foreground disabled:opacity-60">
           {actionBusy === `deny-${order.id}` ? 'Denying...' : 'Deny + Refund'}
         </button>
       </div>
@@ -362,33 +335,27 @@ function PendingReviewCard({ order, actionBusy, approveOrder, denyOrder }) {
   );
 }
 
-function ListingCard({ listing: l, toggleStatus }) {
+function ListingCard({ listing, toggleStatus }) {
   return (
-    <div className="border border-border bg-card p-4" data-testid={`owner-listing-card-${l.id}`}>
+    <div className="border border-border bg-card p-4" data-testid={`owner-listing-card-${listing.id}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <Link to={`/listings/${l.id}`} className="block font-display font-black uppercase text-xl tracking-tight hover:text-primary truncate">
-            {l.website_name}
-          </Link>
-          <div className="mt-2 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-            {l.category || 'Uncategorized'}
-          </div>
+          <Link to={`/listings/${listing.id}`} className="block font-display font-black uppercase text-xl tracking-tight hover:text-primary truncate">{listing.website_name}</Link>
+          <div className="mt-2 text-[10px] uppercase tracking-[0.25em] text-muted-foreground">{listing.category || 'Uncategorized'}</div>
         </div>
-        <StatusBadge status={l.status} />
+        <StatusBadge status={listing.status} />
       </div>
-
       <div className="mt-5 grid grid-cols-2 gap-px bg-border border border-border">
-        <MiniStat label="Price" value={`$${Number(l.monthly_price || 0).toLocaleString()}`} />
-        <MiniStat label="Status" value={l.status} />
+        <MiniStat label="Price" value={`$${Number(listing.monthly_price || 0).toLocaleString()}`} />
+        <MiniStat label="Status" value={listing.status} />
       </div>
-
       <div className="mt-4 grid grid-cols-1 gap-2">
-        {l.status !== 'sold' && (
-          <button onClick={() => toggleStatus(l)} className="w-full inline-flex items-center justify-center gap-2 border border-border px-3 py-3 text-[10px] uppercase tracking-[0.25em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${l.id}`}>
-            {l.status === 'active' ? <><Pause size={12}/> Pause Listing</> : <><Play size={12}/> Activate Listing</>}
+        {listing.status !== 'sold' && (
+          <button onClick={() => toggleStatus(listing)} className="w-full inline-flex items-center justify-center gap-2 border border-border px-3 py-3 text-[10px] uppercase tracking-[0.25em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${listing.id}`}>
+            {listing.status === 'active' ? <><Pause size={12}/> Pause Listing</> : <><Play size={12}/> Activate Listing</>}
           </button>
         )}
-        <Link to={`/listings/${l.id}/edit`} className="w-full inline-flex items-center justify-center gap-2 border border-border px-3 py-3 text-[10px] uppercase tracking-[0.25em] hover:border-primary hover:text-primary" data-testid={`edit-${l.id}`}>
+        <Link to={`/listings/${listing.id}/edit`} className="w-full inline-flex items-center justify-center gap-2 border border-border px-3 py-3 text-[10px] uppercase tracking-[0.25em] hover:border-primary hover:text-primary" data-testid={`edit-${listing.id}`}>
           <Edit3 size={12}/> Edit Listing
         </Link>
       </div>
@@ -396,12 +363,13 @@ function ListingCard({ listing: l, toggleStatus }) {
   );
 }
 
+function StatusText({ value }) {
+  const color = value === 'approved' || value === 'paid' ? 'text-acid' : value === 'denied' || value === 'refunded' ? 'text-primary' : value === 'pending' ? 'text-gold' : 'text-muted-foreground';
+  return <span className={`text-[10px] uppercase tracking-[0.2em] font-bold ${color}`}>● {value}</span>;
+}
+
 function StatusBadge({ status }) {
-  return (
-    <span className={`shrink-0 text-[10px] uppercase tracking-[0.2em] font-bold ${status === 'active' ? 'text-acid' : status === 'paused' ? 'text-gold' : 'text-muted-foreground'}`}>
-      ● {status}
-    </span>
-  );
+  return <span className={`shrink-0 text-[10px] uppercase tracking-[0.2em] font-bold ${status === 'active' ? 'text-acid' : status === 'paused' ? 'text-gold' : 'text-muted-foreground'}`}>● {status}</span>;
 }
 
 function MiniStat({ label, value }) {
