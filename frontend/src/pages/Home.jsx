@@ -57,6 +57,10 @@ export default function Home() {
             <div className="text-[10px] uppercase tracking-[0.3em] sm:tracking-[0.4em] text-primary font-bold mb-4">
               [ MARKETPLACE / V.1 ]
             </div>
+            <div className="mb-5 inline-block border border-primary bg-primary/10 px-4 py-3 text-xs text-muted-foreground leading-relaxed max-w-xl">
+              <span className="block font-bold uppercase tracking-[0.25em] text-primary mb-1">BadAdz is live in beta.</span>
+              We are currently accepting early website owners and advertisers while we improve the platform.
+            </div>
             <h1 className="font-display font-black tracking-tighter uppercase text-4xl sm:text-5xl lg:text-6xl leading-[0.9] break-words">
               Sell ad space.<br />
               Buy ad space.<br />
