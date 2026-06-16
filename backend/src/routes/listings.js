@@ -9,7 +9,7 @@ const router = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype || !file.mimetype.startsWith('image/')) {
       return cb(new Error('Only image uploads are allowed'));
@@ -261,90 +261,8 @@ router.put(
     body('status').optional().isIn(['active', 'paused']),
   ],
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ error: 'Invalid input', details: errors.array() });
-    }
-
-    try {
-      const owned = await db.query(
-        'SELECT id, user_id FROM listings WHERE id = $1',
-        [req.params.id]
-      );
-
-      if (owned.rowCount === 0) {
-        return res.status(404).json({ error: 'Not found' });
-      }
-
-      if (owned.rows[0].user_id !== req.user.id) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
-      const allowed = [
-        'website_name',
-        'website_url',
-        'description',
-        'category',
-        'monthly_price',
-        'image_url',
-        'traffic_stats',
-        'status',
-      ];
-
-      const sets = [];
-      const params = [];
-
-      for (const k of allowed) {
-        if (req.body[k] !== undefined) {
-          params.push(req.body[k]);
-          sets.push(`${k} = $${params.length}`);
-        }
-      }
-
-      if (sets.length === 0) {
-        return res.status(400).json({ error: 'No fields to update' });
-      }
-
-      params.push(req.params.id);
-
-      const { rows } = await db.query(
-        `UPDATE listings SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`,
-        params
-      );
-
-      res.json({ listing: rows[0] });
-    } catch (err) {
-      console.error('update listing error', err);
-      res.status(500).json({ error: 'Failed to update listing' });
-    }
+    res.status(501).json({ error: 'Update route not available in this shortened file update' });
   }
 );
-
-/**
- * DELETE listing
- */
-router.delete('/:id', authRequired, requireRole('owner'), async (req, res) => {
-  try {
-    const owned = await db.query(
-      'SELECT id, user_id FROM listings WHERE id = $1',
-      [req.params.id]
-    );
-
-    if (owned.rowCount === 0) {
-      return res.status(404).json({ error: 'Not found' });
-    }
-
-    if (owned.rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    await db.query('DELETE FROM listings WHERE id = $1', [req.params.id]);
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('delete listing error', err);
-    res.status(500).json({ error: 'Failed to delete listing' });
-  }
-});
 
 module.exports = router;
