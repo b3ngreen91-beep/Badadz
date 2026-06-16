@@ -13,20 +13,40 @@ export default function CreateListing() {
     description: '',
     category: 'Tech',
     monthly_price: '',
-    image_url: '',
     traffic_stats: '',
     status: 'active',
   });
+  const [bannerImage, setBannerImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const onImageChange = (e) => {
+    const file = e.target.files?.[0];
+    setBannerImage(file || null);
+    setPreviewUrl(file ? URL.createObjectURL(file) : '');
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      const payload = { ...form, monthly_price: Number(form.monthly_price) };
-      const { data } = await api.post('/listings', payload);
+      if (!bannerImage) {
+        setError('Please upload a banner image');
+        setBusy(false);
+        return;
+      }
+
+      const payload = new FormData();
+      Object.entries(form).forEach(([key, value]) => payload.append(key, value));
+      payload.append('monthly_price', Number(form.monthly_price));
+      payload.append('banner_image', bannerImage);
+
+      const { data } = await api.post('/listings', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
       toast.success('Listing created');
       navigate(`/listings/${data.listing.id}`);
     } catch (err) {
@@ -59,12 +79,12 @@ export default function CreateListing() {
             <input required type="number" min="0" step="1" value={form.monthly_price} onChange={set('monthly_price')} className={inputClass} data-testid="create-price-input"/>
           </Field>
         </div>
-        <Field label="Banner image URL *">
-          <input required type="url" placeholder="https://…/banner.jpg" value={form.image_url} onChange={set('image_url')} className={inputClass} data-testid="create-image-input"/>
+        <Field label="Upload banner image *">
+          <input required type="file" accept="image/*" onChange={onImageChange} className={inputClass} data-testid="create-image-input"/>
         </Field>
-        {form.image_url && (
+        {previewUrl && (
           <div className="aspect-video border border-border bg-background overflow-hidden">
-            <img src={form.image_url} alt="" className="w-full h-full object-cover" onError={(e)=>{e.currentTarget.style.opacity=0.2;}}/>
+            <img src={previewUrl} alt="Banner preview" className="w-full h-full object-cover"/>
           </div>
         )}
         <Field label="Description">
