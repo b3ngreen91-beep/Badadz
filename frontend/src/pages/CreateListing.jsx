@@ -22,6 +22,7 @@ export default function CreateListing() {
   const [busy, setBusy] = useState(false);
   const [checkingStripe, setCheckingStripe] = useState(true);
   const [stripeConnected, setStripeConnected] = useState(false);
+  const [stripeStatus, setStripeStatus] = useState(null);
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -33,10 +34,16 @@ export default function CreateListing() {
       try {
         const { data } = await api.get('/connect/status');
         if (!active) return;
+        setStripeStatus(data || null);
         setStripeConnected(Boolean(data?.onboarding_complete));
       } catch (err) {
         if (!active) return;
         setStripeConnected(false);
+        setStripeStatus({
+          status_check_failed: true,
+          error: err.response?.data?.error || err.message || 'Unable to check Stripe Connect status',
+          http_status: err.response?.status || null,
+        });
       } finally {
         if (active) setCheckingStripe(false);
       }
@@ -129,6 +136,9 @@ export default function CreateListing() {
   }
 
   if (!stripeConnected) {
+    const requirementsDue = stripeStatus?.requirements_due || [];
+    const eventuallyDue = stripeStatus?.requirements_eventually_due || [];
+
     return (
       <div className="max-w-3xl mx-auto px-6 py-12" data-testid="create-listing-page">
         <div className="text-[10px] uppercase tracking-[0.4em] text-primary mb-4">[ Owner / New Listing ]</div>
@@ -138,6 +148,20 @@ export default function CreateListing() {
           <p className="text-sm text-muted-foreground leading-relaxed mb-6">
             Website owners must connect Stripe before creating paid listings. This lets BadAdz track seller payouts and prepare automatic 80/20 payment splitting.
           </p>
+
+          <div className="border border-border bg-background p-4 mb-4 text-xs leading-relaxed" data-testid="stripe-status-debug">
+            <div className="font-bold uppercase tracking-[0.2em] mb-2">Stripe status</div>
+            <div>Connected account saved: {stripeStatus?.connected ? 'Yes' : 'No'}</div>
+            <div>Onboarding submitted: {stripeStatus?.onboarding_complete ? 'Yes' : 'No'}</div>
+            <div>Charges enabled: {stripeStatus?.charges_enabled ? 'Yes' : 'No'}</div>
+            <div>Payouts enabled: {stripeStatus?.payouts_enabled ? 'Yes' : 'No'}</div>
+            {stripeStatus?.disabled_reason && <div>Disabled reason: {stripeStatus.disabled_reason}</div>}
+            {stripeStatus?.status_check_failed && <div>Status check failed: {stripeStatus.error}</div>}
+            {stripeStatus?.http_status && <div>HTTP status: {stripeStatus.http_status}</div>}
+            {requirementsDue.length > 0 && <div>Required now: {requirementsDue.join(', ')}</div>}
+            {requirementsDue.length === 0 && eventuallyDue.length > 0 && <div>May be required later: {eventuallyDue.join(', ')}</div>}
+          </div>
+
           {error && <div className="text-xs text-primary border border-primary px-3 py-2 mb-4" data-testid="create-error">{error}</div>}
           <div className="flex flex-col sm:flex-row gap-3">
             <button
