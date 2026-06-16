@@ -1,9 +1,44 @@
 const express = require('express');
+const multer = require('multer');
+const { v2: cloudinary } = require('cloudinary');
 const { body, query, validationResult } = require('express-validator');
 const db = require('../db');
 const { authRequired, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image uploads are allowed'));
+    }
+    cb(null, true);
+  },
+});
+
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config({ secure: true });
+}
+
+function uploadToCloudinary(file) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'badadz/listings',
+        resource_type: 'image',
+        transformation: [{ width: 1600, height: 900, crop: 'limit' }],
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+
+    stream.end(file.buffer);
+  });
+}
 
 /**
  * PUBLIC: Browse listings
@@ -127,13 +162,14 @@ router.post(
   '/',
   authRequired,
   requireRole('owner'),
+  upload.single('banner_image'),
   [
     body('website_name').isString().trim().isLength({ min: 1, max: 120 }),
     body('website_url').isURL({ require_protocol: true }),
     body('description').optional().isString().isLength({ max: 5000 }),
     body('category').isString().trim().isLength({ min: 1, max: 60 }),
     body('monthly_price').isFloat({ min: 0 }),
-    body('image_url').isURL({ require_protocol: true }),
+    body('image_url').optional({ checkFalsy: true }).isURL({ require_protocol: true }),
     body('traffic_stats').optional().isString().isLength({ max: 500 }),
     body('status').optional().isIn(['active', 'paused']),
   ],
@@ -155,6 +191,21 @@ router.post(
     } = req.body;
 
     try {
+      let finalImageUrl = image_url || '';
+
+      if (req.file) {
+        if (!process.env.CLOUDINARY_URL) {
+          return res.status(500).json({ error: 'Image uploads are not configured' });
+        }
+
+        const uploaded = await uploadToCloudinary(req.file);
+        finalImageUrl = uploaded.secure_url;
+      }
+
+      if (!finalImageUrl) {
+        return res.status(400).json({ error: 'Banner image is required' });
+      }
+
       const { rows } = await db.query(
         `
         INSERT INTO listings (
@@ -178,7 +229,7 @@ router.post(
           description,
           category,
           monthly_price,
-          image_url,
+          finalImageUrl,
           traffic_stats,
           status,
         ]
