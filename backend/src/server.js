@@ -10,6 +10,7 @@ const listingsRouter = require('./routes/listings');
 const ordersRouter = require('./routes/orders');
 const webhookRouter = require('./routes/webhook');
 const adminRouter = require('./routes/admin');
+const connectRouter = require('./routes/connect');
 const { expireEndedCampaigns } = require('./services/expireCampaigns');
 
 const app = express();
@@ -50,6 +51,8 @@ app.get('/api', (_req, res) => res.json({
     'POST /api/auth/login',
     'GET  /api/auth/me',
     'POST /api/auth/logout',
+    'POST /api/connect/onboard',
+    'GET  /api/connect/status',
     'GET  /api/listings',
     'GET  /api/listings/meta/categories',
     'GET  /api/listings/:id',
@@ -68,6 +71,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'badadz-
 
 // ---- Mounted routers ----
 app.use('/api/auth', authRouter);
+app.use('/api/connect', connectRouter);
 app.use('/api/listings', listingsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/admin', adminRouter);
