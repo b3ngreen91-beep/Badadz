@@ -19,10 +19,10 @@ export default function Footer() {
           <ul className="space-y-2 text-sm font-mono text-muted-foreground">
             <li><Link className="hover:text-white" to="/how-it-works">How It Works</Link></li>
             <li><Link className="hover:text-white" to="/contact">Contact / Support</Link></li>
-            <li>Marketplace</li>
-            <li>Owner Tools</li>
-            <li>Advertiser Tools</li>
-            <li>Stripe Payments</li>
+            <li><Link className="hover:text-white" to="/marketplace">Marketplace</Link></li>
+            <li><Link className="hover:text-white" to="/my-listings">Owner Tools</Link></li>
+            <li><Link className="hover:text-white" to="/my-campaigns">Advertiser Tools</Link></li>
+            <li><Link className="hover:text-white" to="/refund-policy">Stripe Payments</Link></li>
           </ul>
         </div>
 
