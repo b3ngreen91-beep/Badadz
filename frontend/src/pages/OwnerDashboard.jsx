@@ -12,6 +12,7 @@ export default function OwnerDashboard() {
   const [connectStatus, setConnectStatus] = useState({ onboarding_complete: false });
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [actionBusy, setActionBusy] = useState('');
 
   const load = async () => {
     if (!user?.id) return;
@@ -73,15 +74,45 @@ export default function OwnerDashboard() {
     }
   };
 
-  const paidOrders = salesData.orders.filter(o => o.payment_status === 'paid');
+  const approveOrder = async (order) => {
+    setActionBusy(`approve-${order.id}`);
+    try {
+      await api.post(`/orders/${order.id}/approve`);
+      toast.success('Ad purchase approved');
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to approve order');
+    } finally {
+      setActionBusy('');
+    }
+  };
+
+  const denyOrder = async (order) => {
+    const confirmed = window.confirm('Deny this ad purchase and refund the advertiser?');
+    if (!confirmed) return;
+
+    setActionBusy(`deny-${order.id}`);
+    try {
+      await api.post(`/orders/${order.id}/deny`, { reason: 'Denied by website owner' });
+      toast.success('Ad purchase denied and refund started');
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to deny order');
+    } finally {
+      setActionBusy('');
+    }
+  };
+
+  const approvedPaidOrders = salesData.orders.filter(o => o.payment_status === 'paid' && o.approval_status === 'approved');
+  const pendingApprovalOrders = salesData.orders.filter(o => o.payment_status === 'paid' && o.approval_status === 'pending');
   const activeCount = listings.filter(l => l.status === 'active').length;
   const soldCount = listings.filter(l => l.status === 'sold').length;
   const pausedCount = listings.filter(l => l.status === 'paused').length;
-  const totalSales = paidOrders.reduce((sum, o) => sum + Number(o.price_paid || 0), 0);
-  const totalFees = paidOrders.reduce((sum, o) => sum + Number(o.platform_fee || 0), 0);
-  const totalEarnings = paidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
-  const activeCampaigns = paidOrders.filter(o => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
-  const completedCampaigns = paidOrders.filter(o => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
+  const totalSales = approvedPaidOrders.reduce((sum, o) => sum + Number(o.price_paid || 0), 0);
+  const totalFees = approvedPaidOrders.reduce((sum, o) => sum + Number(o.platform_fee || 0), 0);
+  const totalEarnings = approvedPaidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
+  const activeCampaigns = approvedPaidOrders.filter(o => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
+  const completedCampaigns = approvedPaidOrders.filter(o => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
   const stripeConnected = Boolean(connectStatus?.onboarding_complete);
 
   return (
@@ -128,11 +159,19 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
+      {pendingApprovalOrders.length > 0 && (
+        <div className="border border-gold bg-gold/10 p-5 sm:p-6 mb-8" data-testid="owner-pending-approval-card">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-gold font-bold mb-2">Owner approval needed</div>
+          <h2 className="font-display font-black uppercase text-2xl tracking-tight">{pendingApprovalOrders.length} paid ad request{pendingApprovalOrders.length === 1 ? '' : 's'} waiting.</h2>
+          <p className="text-sm text-muted-foreground mt-3">Review the advertiser and listing below. Approving starts the campaign. Denying attempts to refund the advertiser through Stripe.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-8" data-testid="owner-revenue-stats">
-        <Stat label="Total Sales" value={`$${totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+        <Stat label="Approved Sales" value={`$${totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
         <Stat label="Platform Fees" value={`$${totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
         <Stat label="Your Earnings" value={`$${totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} highlight />
-        <Stat label="Paid Orders" value={paidOrders.length} />
+        <Stat label="Needs Approval" value={pendingApprovalOrders.length} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-border border border-border mb-12" data-testid="owner-listing-stats">
@@ -206,7 +245,7 @@ export default function OwnerDashboard() {
         <div className="border border-border p-8 sm:p-12 text-center text-sm text-muted-foreground" data-testid="owner-no-sales">No sales yet.</div>
       ) : (
         <div className="border border-border bg-card overflow-x-auto" data-testid="owner-sales-table">
-          <table className="w-full text-sm min-w-[760px]">
+          <table className="w-full text-sm min-w-[900px]">
             <thead className="border-b border-border bg-secondary">
               <tr className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
                 <th className="text-left p-3">Date</th>
@@ -215,7 +254,9 @@ export default function OwnerDashboard() {
                 <th className="text-right p-3">Paid</th>
                 <th className="text-right p-3">Fee</th>
                 <th className="text-right p-3">You Earn</th>
-                <th className="text-left p-3">Status</th>
+                <th className="text-left p-3">Payment</th>
+                <th className="text-left p-3">Approval</th>
+                <th className="text-right p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -223,11 +264,34 @@ export default function OwnerDashboard() {
                 <tr key={o.id} className="border-b border-border last:border-b-0">
                   <td className="p-3 font-mono text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString()}</td>
                   <td className="p-3">{o.website_name}</td>
-                  <td className="p-3 text-muted-foreground">{o.advertiser_name}</td>
+                  <td className="p-3 text-muted-foreground">{o.advertiser_name}<br/><span className="text-xs">{o.advertiser_email}</span></td>
                   <td className="p-3 text-right font-mono">${Number(o.price_paid).toFixed(2)}</td>
                   <td className="p-3 text-right font-mono text-muted-foreground">${Number(o.platform_fee).toFixed(2)}</td>
                   <td className="p-3 text-right font-mono text-acid">${Number(o.seller_earnings).toFixed(2)}</td>
-                  <td className="p-3"><span className={`text-[10px] uppercase tracking-[0.2em] font-bold ${o.payment_status==='paid'?'text-acid':'text-gold'}`}>● {o.payment_status}</span></td>
+                  <td className="p-3"><span className={`text-[10px] uppercase tracking-[0.2em] font-bold ${o.payment_status==='paid'?'text-acid':o.payment_status==='refunded'?'text-primary':'text-gold'}`}>● {o.payment_status}</span></td>
+                  <td className="p-3"><span className={`text-[10px] uppercase tracking-[0.2em] font-bold ${o.approval_status==='approved'?'text-acid':o.approval_status==='denied'?'text-primary':o.approval_status==='pending'?'text-gold':'text-muted-foreground'}`}>● {o.approval_status || 'awaiting_payment'}</span></td>
+                  <td className="p-3 text-right">
+                    {o.payment_status === 'paid' && o.approval_status === 'pending' ? (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => approveOrder(o)}
+                          disabled={Boolean(actionBusy)}
+                          className="border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60"
+                        >
+                          {actionBusy === `approve-${o.id}` ? 'Approving...' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => denyOrder(o)}
+                          disabled={Boolean(actionBusy)}
+                          className="border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60"
+                        >
+                          {actionBusy === `deny-${o.id}` ? 'Denying...' : 'Deny'}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
