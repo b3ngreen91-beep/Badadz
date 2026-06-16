@@ -5,6 +5,8 @@ import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
 import { ExternalLink, ArrowLeft } from 'lucide-react';
 
+const CREATIVE_SIZES = ['728x90', '300x250', '160x600', '320x50', '970x250'];
+
 export default function ListingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -13,6 +15,10 @@ export default function ListingDetail() {
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState(1);
   const [buying, setBuying] = useState(false);
+  const [destinationUrl, setDestinationUrl] = useState('');
+  const [advertiserNotes, setAdvertiserNotes] = useState('');
+  const [creativeFiles, setCreativeFiles] = useState({});
+  const [creativePreviews, setCreativePreviews] = useState({});
 
   useEffect(() => {
     api.get(`/listings/${id}`)
@@ -21,12 +27,33 @@ export default function ListingDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const onCreativeChange = (size) => (e) => {
+    const file = e.target.files?.[0];
+    setCreativeFiles((prev) => ({ ...prev, [size]: file || null }));
+    setCreativePreviews((prev) => ({ ...prev, [size]: file ? URL.createObjectURL(file) : '' }));
+  };
+
   const buy = async () => {
     if (!user) { navigate('/login', { state: { from: `/listings/${id}` } }); return; }
     if (user.role !== 'advertiser') { toast.error('Only advertisers can buy. Create an advertiser account.'); return; }
+    if (!destinationUrl.trim()) { toast.error('Enter the destination URL for your ad.'); return; }
+    if (!Object.values(creativeFiles).some(Boolean)) { toast.error('Upload at least one banner creative.'); return; }
+
     setBuying(true);
     try {
-      const { data } = await api.post('/orders/create-checkout-session', { listing_id: id, months });
+      const payload = new FormData();
+      payload.append('listing_id', id);
+      payload.append('months', String(months));
+      payload.append('destination_url', destinationUrl.trim());
+      payload.append('advertiser_notes', advertiserNotes.trim());
+
+      CREATIVE_SIZES.forEach((size) => {
+        if (creativeFiles[size]) payload.append(`creative_${size}`, creativeFiles[size]);
+      });
+
+      const { data } = await api.post('/orders/create-checkout-session', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       window.location.href = data.url;
     } catch (e) {
       toast.error(e.response?.data?.error || 'Checkout failed');
@@ -103,6 +130,52 @@ export default function ListingDetail() {
               </div>
             </div>
 
+            {!isOwner && (
+              <div className="mt-6 border-t border-border pt-5 space-y-4">
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground block mb-2">Ad destination URL *</label>
+                  <input
+                    type="url"
+                    placeholder="https://your-site.com/offer"
+                    value={destinationUrl}
+                    onChange={(e) => setDestinationUrl(e.target.value)}
+                    className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    data-testid="ad-destination-input"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground block mb-2">Advertiser notes</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Tell the site owner what this campaign is promoting."
+                    value={advertiserNotes}
+                    onChange={(e) => setAdvertiserNotes(e.target.value)}
+                    className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    data-testid="ad-notes-input"
+                  />
+                </div>
+
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Upload banner creatives *</div>
+                  <p className="text-[11px] text-muted-foreground mb-3">Upload one or more sizes. The website owner will review these before approving your ad.</p>
+                  <div className="space-y-3">
+                    {CREATIVE_SIZES.map((size) => (
+                      <div key={size} className="border border-border p-3">
+                        <label className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground block mb-2">{size}</label>
+                        <input type="file" accept="image/*" onChange={onCreativeChange(size)} className="w-full text-xs" data-testid={`creative-${size}-input`} />
+                        {creativePreviews[size] && (
+                          <div className="mt-3 border border-border bg-black p-2 overflow-hidden">
+                            <img src={creativePreviews[size]} alt={`${size} preview`} className="max-w-full h-auto" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="mt-6 border-t border-border pt-4 space-y-2 text-sm font-mono">
               <Row label="Subtotal" value={`$${total.toFixed(2)}`} />
               <Row label="Platform fee (20%)" value={`–$${(total*0.2).toFixed(2)}`} muted />
@@ -122,12 +195,12 @@ export default function ListingDetail() {
                 disabled={buying || listing.status !== 'active'}
                 className="w-full mt-6 bg-primary text-primary-foreground py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors disabled:opacity-50"
                 data-testid="buy-now-btn">
-                {listing.status !== 'active' ? 'Unavailable' : (buying ? 'Redirecting…' : 'Buy Ad Space →')}
+                {listing.status !== 'active' ? 'Unavailable' : (buying ? 'Redirecting…' : 'Submit Ad + Pay →')}
               </button>
             )}
 
             <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mt-3 text-center">
-              Payment by Stripe. Secure checkout.
+              Payment by Stripe. Owner approval required before campaign goes live.
             </p>
           </div>
         </aside>
