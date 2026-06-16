@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { toast } from 'sonner';
@@ -20,8 +20,51 @@ export default function CreateListing() {
   const [bannerImage, setBannerImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [busy, setBusy] = useState(false);
+  const [checkingStripe, setCheckingStripe] = useState(true);
+  const [stripeConnected, setStripeConnected] = useState(false);
+  const [connectingStripe, setConnectingStripe] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  useEffect(() => {
+    let active = true;
+
+    const checkStripeConnect = async () => {
+      try {
+        const { data } = await api.get('/connect/status');
+        if (!active) return;
+        setStripeConnected(Boolean(data?.onboarding_complete));
+      } catch (err) {
+        if (!active) return;
+        setStripeConnected(false);
+      } finally {
+        if (active) setCheckingStripe(false);
+      }
+    };
+
+    checkStripeConnect();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const startStripeConnect = async () => {
+    setConnectingStripe(true);
+    setError('');
+    try {
+      const { data } = await api.post('/connect/onboard');
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        setError('Stripe onboarding link was not returned');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to start Stripe Connect');
+    } finally {
+      setConnectingStripe(false);
+    }
+  };
 
   const onImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -41,6 +84,12 @@ export default function CreateListing() {
 
   const submit = async (e) => {
     e.preventDefault();
+
+    if (!stripeConnected) {
+      setError('Connect Stripe before creating a listing.');
+      return;
+    }
+
     setBusy(true); setError('');
     try {
       if (!bannerImage) {
@@ -68,6 +117,51 @@ export default function CreateListing() {
       setBusy(false);
     }
   };
+
+  if (checkingStripe) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12" data-testid="create-listing-page">
+        <div className="text-[10px] uppercase tracking-[0.4em] text-primary mb-4">[ Owner / New Listing ]</div>
+        <h1 className="font-display font-black uppercase text-3xl tracking-tight mb-2">Checking Stripe payouts…</h1>
+        <p className="text-sm text-muted-foreground">Please wait while BadAdz verifies your seller payout setup.</p>
+      </div>
+    );
+  }
+
+  if (!stripeConnected) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12" data-testid="create-listing-page">
+        <div className="text-[10px] uppercase tracking-[0.4em] text-primary mb-4">[ Owner / New Listing ]</div>
+        <div className="border border-primary bg-primary/10 p-6">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-primary font-bold mb-3">Action required</div>
+          <h1 className="font-display font-black uppercase text-3xl tracking-tight mb-3">Connect Stripe before listing.</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+            Website owners must connect Stripe before creating paid listings. This lets BadAdz track seller payouts and prepare automatic 80/20 payment splitting.
+          </p>
+          {error && <div className="text-xs text-primary border border-primary px-3 py-2 mb-4" data-testid="create-error">{error}</div>}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={startStripeConnect}
+              disabled={connectingStripe}
+              className="bg-primary text-primary-foreground px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors disabled:opacity-60"
+              data-testid="create-connect-stripe-btn"
+            >
+              {connectingStripe ? 'Opening Stripe…' : 'Connect Stripe'}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/owner')}
+              className="border border-border px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:border-primary hover:text-primary"
+              data-testid="create-back-dashboard-btn"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-12" data-testid="create-listing-page">
