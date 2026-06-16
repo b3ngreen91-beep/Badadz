@@ -151,6 +151,22 @@ async function getPaymentIntentForOrder(order, stripe) {
   return paymentIntentId;
 }
 
+async function markOrderDenied(order, reason, paymentStatus = 'refunded', paymentIntentId = null) {
+  const { rows } = await db.query(
+    `UPDATE orders
+     SET approval_status = 'denied',
+         payment_status = $1,
+         stripe_payment_intent_id = COALESCE($2, stripe_payment_intent_id),
+         denied_at = NOW(),
+         denial_reason = $3
+     WHERE id = $4
+     RETURNING *`,
+    [paymentStatus, paymentIntentId, reason || null, order.id]
+  );
+
+  return rows[0];
+}
+
 // Create Stripe Checkout session with advertiser creative uploads
 router.post(
   '/create-checkout-session',
@@ -282,7 +298,7 @@ router.post('/:orderId/approve', authRequired, requireRole('owner'), async (req,
   }
 });
 
-// Owner: deny paid ad request and automatically refund buyer
+// Owner: deny paid ad request and automatically refund buyer when money was charged.
 router.post(
   '/:orderId/deny',
   authRequired,
@@ -296,25 +312,21 @@ router.post(
       const order = await getOwnerOrder(req.params.orderId, req.user.id);
       if (!order) return res.status(404).json({ error: 'Order not found' });
       if (order.approval_status === 'approved') return res.status(400).json({ error: 'Approved orders cannot be denied' });
-      if (order.payment_status !== 'paid') return res.status(400).json({ error: 'Only paid orders can be denied and refunded' });
+      if (order.payment_status !== 'paid') return res.status(400).json({ error: 'Only paid orders can be denied' });
+
+      const pricePaid = Number(order.price_paid || 0);
+
+      if (!Number.isFinite(pricePaid) || pricePaid <= 0) {
+        const deniedOrder = await markOrderDenied(order, req.body.reason || 'Denied by website owner', 'refunded', null);
+        return res.json({ order: deniedOrder, refund_skipped: true, reason: 'No Stripe refund needed for a $0 order' });
+      }
 
       const stripe = getStripe();
       const paymentIntentId = await getPaymentIntentForOrder(order, stripe);
       await stripe.refunds.create({ payment_intent: paymentIntentId });
 
-      const { rows } = await db.query(
-        `UPDATE orders
-         SET approval_status = 'denied',
-             payment_status = 'refunded',
-             stripe_payment_intent_id = $1,
-             denied_at = NOW(),
-             denial_reason = $2
-         WHERE id = $3
-         RETURNING *`,
-        [paymentIntentId, req.body.reason || null, order.id]
-      );
-
-      res.json({ order: rows[0] });
+      const deniedOrder = await markOrderDenied(order, req.body.reason || 'Denied by website owner', 'refunded', paymentIntentId);
+      return res.json({ order: deniedOrder, refund_skipped: false });
     } catch (err) {
       console.error('deny order error', err);
       res.status(500).json({ error: err.message || 'Failed to deny and refund order' });
