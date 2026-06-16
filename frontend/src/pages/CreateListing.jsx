@@ -4,6 +4,7 @@ import api from '../lib/api';
 import { toast } from 'sonner';
 
 const CATEGORIES = ['Tech', 'Finance', 'Sports', 'Design', 'Gaming', 'News', 'Lifestyle', 'Crypto', 'Health', 'Other'];
+const MAX_IMAGE_MB = 10;
 
 export default function CreateListing() {
   const navigate = useNavigate();
@@ -24,6 +25,16 @@ export default function CreateListing() {
 
   const onImageChange = (e) => {
     const file = e.target.files?.[0];
+
+    if (file && file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      setError(`Image must be ${MAX_IMAGE_MB}MB or smaller`);
+      setBannerImage(null);
+      setPreviewUrl('');
+      e.target.value = '';
+      return;
+    }
+
+    setError('');
     setBannerImage(file || null);
     setPreviewUrl(file ? URL.createObjectURL(file) : '');
   };
@@ -39,8 +50,10 @@ export default function CreateListing() {
       }
 
       const payload = new FormData();
-      Object.entries(form).forEach(([key, value]) => payload.append(key, value));
-      payload.append('monthly_price', Number(form.monthly_price));
+      Object.entries(form).forEach(([key, value]) => {
+        if (key !== 'monthly_price') payload.append(key, value);
+      });
+      payload.append('monthly_price', String(Number(form.monthly_price)));
       payload.append('banner_image', bannerImage);
 
       const { data } = await api.post('/listings', payload, {
@@ -79,7 +92,7 @@ export default function CreateListing() {
             <input required type="number" min="0" step="1" value={form.monthly_price} onChange={set('monthly_price')} className={inputClass} data-testid="create-price-input"/>
           </Field>
         </div>
-        <Field label="Upload banner image *">
+        <Field label={`Upload banner image * (${MAX_IMAGE_MB}MB max)`}>
           <input required type="file" accept="image/*" onChange={onImageChange} className={inputClass} data-testid="create-image-input"/>
         </Field>
         {previewUrl && (
