@@ -51,12 +51,13 @@ router.get(
     query('include_inactive').optional().isBoolean().toBoolean(),
   ],
   async (req, res) => {
-    const { search, category, min_price, max_price, owner_id, include_inactive } = req.query;
+    const { search, category, min_price, max_price, owner_id } = req.query;
+    const includeInactive = req.query.include_inactive === true || req.query.include_inactive === 'true';
 
     const where = [];
     const params = [];
 
-    if (!include_inactive) where.push(`l.status = 'active'`);
+    if (!includeInactive) where.push(`l.status = 'active'`);
 
     if (search) {
       params.push(`%${search}%`);
