@@ -14,17 +14,30 @@ export default function OwnerDashboard() {
   const [connecting, setConnecting] = useState(false);
 
   const load = async () => {
+    if (!user?.id) return;
     setLoading(true);
+
     try {
-      const [{ data: ld }, { data: sd }, connectResult] = await Promise.allSettled([
+      const [listingsResult, salesResult, connectResult] = await Promise.allSettled([
         api.get('/listings', { params: { owner_id: user.id, include_inactive: true } }),
         api.get('/orders/sales'),
         api.get('/connect/status'),
       ]);
 
-      if (ld.status === 'fulfilled') setListings(ld.value.data.listings || []);
-      if (sd.status === 'fulfilled') setSalesData(sd.value.data);
-      if (connectResult.status === 'fulfilled') setConnectStatus(connectResult.value.data || { onboarding_complete: false });
+      if (listingsResult.status === 'fulfilled') {
+        setListings(listingsResult.value.data.listings || []);
+      }
+
+      if (salesResult.status === 'fulfilled') {
+        setSalesData(salesResult.value.data || { orders: [], stats: { total_earnings: 0, paid_count: 0 } });
+      }
+
+      if (connectResult.status === 'fulfilled') {
+        setConnectStatus(connectResult.value.data || { onboarding_complete: false });
+      } else {
+        console.error('connect status failed', connectResult.reason);
+        setConnectStatus({ onboarding_complete: false, status_check_failed: true });
+      }
     } finally {
       setLoading(false);
     }
@@ -103,6 +116,9 @@ export default function OwnerDashboard() {
                 ? 'Your seller payout account is connected. New listing sales can be routed through Stripe Connect.'
                 : 'Website owners must connect Stripe before creating paid listings. This lets BadAdz send seller earnings automatically after a buyer purchases ad space.'}
             </p>
+            {!stripeConnected && connectStatus?.status_check_failed && (
+              <p className="text-xs text-primary mt-3">Stripe status check failed. Refresh the page or try connecting again.</p>
+            )}
           </div>
           {!stripeConnected && (
             <button onClick={startStripeConnect} disabled={connecting} className="shrink-0 bg-primary text-primary-foreground px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors disabled:opacity-60" data-testid="owner-connect-stripe-card-btn">
