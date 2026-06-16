@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://badadz.net/sitemap.xml
