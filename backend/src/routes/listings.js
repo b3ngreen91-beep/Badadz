@@ -22,6 +22,46 @@ if (process.env.CLOUDINARY_URL) {
   cloudinary.config({ secure: true });
 }
 
+async function ensureConnectColumns() {
+  await db.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS stripe_connect_account_id TEXT,
+    ADD COLUMN IF NOT EXISTS stripe_connect_onboarding_complete BOOLEAN DEFAULT FALSE
+  `);
+}
+
+async function requireStripeConnectReady(userId, res) {
+  await ensureConnectColumns();
+
+  const { rows } = await db.query(
+    `
+    SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
+    FROM users
+    WHERE id = $1
+    `,
+    [userId]
+  );
+
+  if (rows.length === 0) {
+    res.status(404).json({ error: 'User not found' });
+    return false;
+  }
+
+  const user = rows[0];
+  const hasConnectAccount = Boolean(user.stripe_connect_account_id);
+  const onboardingComplete = user.stripe_connect_onboarding_complete === true;
+
+  if (!hasConnectAccount || !onboardingComplete) {
+    res.status(403).json({
+      error: 'Stripe Connect is required before creating listings',
+      code: 'STRIPE_CONNECT_REQUIRED',
+    });
+    return false;
+  }
+
+  return true;
+}
+
 function uploadToCloudinary(file) {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -162,6 +202,9 @@ router.post(
     const { website_name, website_url, description = '', category, monthly_price, image_url, traffic_stats, status = 'active' } = req.body;
 
     try {
+      const connectReady = await requireStripeConnectReady(req.user.id, res);
+      if (!connectReady) return;
+
       let finalImageUrl = image_url || '';
 
       if (req.file) {
