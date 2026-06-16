@@ -19,6 +19,21 @@ async function ensureConnectColumns() {
   `);
 }
 
+function getConnectStatusFromStripeAccount(account) {
+  const currentlyDue = account?.requirements?.currently_due || [];
+  const eventuallyDue = account?.requirements?.eventually_due || [];
+  const disabledReason = account?.requirements?.disabled_reason || null;
+
+  return {
+    onboardingComplete: Boolean(account?.details_submitted),
+    chargesEnabled: Boolean(account?.charges_enabled),
+    payoutsEnabled: Boolean(account?.payouts_enabled),
+    currentlyDue,
+    eventuallyDue,
+    disabledReason,
+  };
+}
+
 router.post('/onboard', authRequired, requireRole('owner'), async (req, res) => {
   try {
     await ensureConnectColumns();
@@ -76,22 +91,36 @@ router.get('/status', authRequired, requireRole('owner'), async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     const accountId = rows[0].stripe_connect_account_id;
-    let complete = rows[0].stripe_connect_onboarding_complete === true;
 
-    if (accountId) {
-      const account = await stripe.accounts.retrieve(accountId);
-      complete = Boolean(account.details_submitted && account.charges_enabled && account.payouts_enabled);
-
-      await db.query(
-        'UPDATE users SET stripe_connect_onboarding_complete = $1 WHERE id = $2',
-        [complete, req.user.id]
-      );
+    if (!accountId) {
+      return res.json({
+        connected: false,
+        onboarding_complete: false,
+        charges_enabled: false,
+        payouts_enabled: false,
+        account_id: null,
+        requirements_due: [],
+        disabled_reason: null,
+      });
     }
 
+    const account = await stripe.accounts.retrieve(accountId);
+    const status = getConnectStatusFromStripeAccount(account);
+
+    await db.query(
+      'UPDATE users SET stripe_connect_onboarding_complete = $1 WHERE id = $2',
+      [status.onboardingComplete, req.user.id]
+    );
+
     res.json({
-      connected: Boolean(accountId),
-      onboarding_complete: complete,
-      account_id: accountId || null,
+      connected: true,
+      onboarding_complete: status.onboardingComplete,
+      charges_enabled: status.chargesEnabled,
+      payouts_enabled: status.payoutsEnabled,
+      account_id: accountId,
+      requirements_due: status.currentlyDue,
+      requirements_eventually_due: status.eventuallyDue,
+      disabled_reason: status.disabledReason,
     });
   } catch (err) {
     console.error('connect status error', err);
