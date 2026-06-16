@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../db');
 const { authRequired, requireRole } = require('../middleware/auth');
+const { sendCampaignPurchaseEmails } = require('../services/email');
 
 const router = express.Router();
 
@@ -14,6 +15,50 @@ function getStripe() {
   // Lazy require so the server still boots if Stripe is misconfigured.
   // eslint-disable-next-line global-require
   return require('stripe')(key);
+}
+
+async function ensureOrderApprovalColumns() {
+  await db.query(`
+    ALTER TABLE orders
+    ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'awaiting_payment',
+    ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT,
+    ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS denied_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS denial_reason TEXT
+  `);
+
+  await db.query(`
+    UPDATE orders
+    SET approval_status = CASE
+      WHEN approval_status IS NULL AND payment_status = 'paid' THEN 'approved'
+      WHEN approval_status IS NULL THEN 'awaiting_payment'
+      ELSE approval_status
+    END
+  `);
+}
+
+async function getOwnerOrder(orderId, ownerId) {
+  await ensureOrderApprovalColumns();
+
+  const { rows } = await db.query(
+    `SELECT
+       o.*,
+       l.website_name,
+       l.website_url,
+       l.user_id AS seller_id,
+       seller.name AS seller_name,
+       seller.email AS seller_email,
+       advertiser.name AS advertiser_name,
+       advertiser.email AS advertiser_email
+     FROM orders o
+     JOIN listings l ON l.id = o.listing_id
+     JOIN users seller ON seller.id = l.user_id
+     JOIN users advertiser ON advertiser.id = o.advertiser_id
+     WHERE o.id = $1 AND l.user_id = $2`,
+    [orderId, ownerId]
+  );
+
+  return rows[0] || null;
 }
 
 // Create Stripe Checkout session
@@ -30,6 +75,8 @@ router.post(
     const months = FIXED_CAMPAIGN_MONTHS;
 
     try {
+      await ensureOrderApprovalColumns();
+
       const { rows } = await db.query('SELECT * FROM listings WHERE id = $1', [listing_id]);
       if (rows.length === 0) return res.status(404).json({ error: 'Listing not found' });
       const listing = rows[0];
@@ -45,9 +92,10 @@ router.post(
       const seller_earnings = +(total - platform_fee).toFixed(2);
 
       // Insert pending order first. The webhook marks it paid after Stripe confirms payment.
+      // Owner approval happens after payment, before the campaign is activated.
       const orderInsert = await db.query(
-        `INSERT INTO orders (listing_id, advertiser_id, price_paid, platform_fee, seller_earnings, payment_status)
-         VALUES ($1,$2,$3,$4,$5,'pending')
+        `INSERT INTO orders (listing_id, advertiser_id, price_paid, platform_fee, seller_earnings, payment_status, approval_status)
+         VALUES ($1,$2,$3,$4,$5,'pending','awaiting_payment')
          RETURNING id`,
         [listing.id, req.user.id, total, platform_fee, seller_earnings]
       );
@@ -87,9 +135,86 @@ router.post(
   }
 );
 
+// Owner: approve paid ad request
+router.post('/:orderId/approve', authRequired, requireRole('owner'), async (req, res) => {
+  try {
+    const order = await getOwnerOrder(req.params.orderId, req.user.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.payment_status !== 'paid') return res.status(400).json({ error: 'Order must be paid before approval' });
+    if (order.approval_status === 'denied') return res.status(400).json({ error: 'Denied orders cannot be approved' });
+
+    const now = new Date();
+    const end = new Date(now);
+    end.setMonth(end.getMonth() + FIXED_CAMPAIGN_MONTHS);
+
+    const { rows } = await db.query(
+      `UPDATE orders
+       SET approval_status = 'approved',
+           approved_at = NOW(),
+           campaign_starts_at = $1,
+           campaign_ends_at = $2
+       WHERE id = $3
+       RETURNING *`,
+      [now, end, order.id]
+    );
+
+    await db.query(`UPDATE listings SET status='sold' WHERE id=$1`, [order.listing_id]);
+
+    const approvedOrder = { ...order, ...rows[0], campaign_starts_at: now, campaign_ends_at: end };
+    await sendCampaignPurchaseEmails(approvedOrder);
+
+    res.json({ order: rows[0] });
+  } catch (err) {
+    console.error('approve order error', err);
+    res.status(500).json({ error: 'Failed to approve order' });
+  }
+});
+
+// Owner: deny paid ad request and refund buyer
+router.post(
+  '/:orderId/deny',
+  authRequired,
+  requireRole('owner'),
+  [body('reason').optional().isString().isLength({ max: 1000 })],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ error: 'Invalid input' });
+
+    try {
+      const order = await getOwnerOrder(req.params.orderId, req.user.id);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      if (order.approval_status === 'approved') return res.status(400).json({ error: 'Approved orders cannot be denied' });
+      if (order.payment_status !== 'paid') return res.status(400).json({ error: 'Only paid orders can be denied and refunded' });
+      if (!order.stripe_payment_intent_id) return res.status(400).json({ error: 'Payment intent missing; refund must be handled manually in Stripe' });
+
+      const stripe = getStripe();
+      await stripe.refunds.create({ payment_intent: order.stripe_payment_intent_id });
+
+      const { rows } = await db.query(
+        `UPDATE orders
+         SET approval_status = 'denied',
+             payment_status = 'refunded',
+             denied_at = NOW(),
+             denial_reason = $1
+         WHERE id = $2
+         RETURNING *`,
+        [req.body.reason || null, order.id]
+      );
+
+      await db.query(`UPDATE listings SET status='active' WHERE id=$1 AND status <> 'sold'`, [order.listing_id]);
+
+      res.json({ order: rows[0] });
+    } catch (err) {
+      console.error('deny order error', err);
+      res.status(500).json({ error: err.message || 'Failed to deny and refund order' });
+    }
+  }
+);
+
 // Verify a checkout session (called from success page)
 router.get('/session/:sessionId', authRequired, async (req, res) => {
   try {
+    await ensureOrderApprovalColumns();
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
     const { rows } = await db.query(
@@ -115,6 +240,7 @@ router.get('/session/:sessionId', authRequired, async (req, res) => {
 // Advertiser: my campaigns
 router.get('/my', authRequired, requireRole('advertiser'), async (req, res) => {
   try {
+    await ensureOrderApprovalColumns();
     const { rows } = await db.query(
       `SELECT
          o.*,
@@ -141,6 +267,7 @@ router.get('/my', authRequired, requireRole('advertiser'), async (req, res) => {
 // Owner: sales / earnings
 router.get('/sales', authRequired, requireRole('owner'), async (req, res) => {
   try {
+    await ensureOrderApprovalColumns();
     const { rows } = await db.query(
       `SELECT o.*, l.website_name, u.name AS advertiser_name, u.email AS advertiser_email
        FROM orders o
@@ -152,8 +279,8 @@ router.get('/sales', authRequired, requireRole('owner'), async (req, res) => {
     );
     const stats = await db.query(
       `SELECT
-         COALESCE(SUM(CASE WHEN o.payment_status='paid' THEN o.seller_earnings ELSE 0 END),0)::numeric AS total_earnings,
-         COALESCE(SUM(CASE WHEN o.payment_status='paid' THEN 1 ELSE 0 END),0)::int AS paid_count
+         COALESCE(SUM(CASE WHEN o.payment_status='paid' AND o.approval_status='approved' THEN o.seller_earnings ELSE 0 END),0)::numeric AS total_earnings,
+         COALESCE(SUM(CASE WHEN o.payment_status='paid' AND o.approval_status='approved' THEN 1 ELSE 0 END),0)::int AS paid_count
        FROM orders o JOIN listings l ON l.id = o.listing_id
        WHERE l.user_id = $1`,
       [req.user.id]
