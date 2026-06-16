@@ -127,6 +127,30 @@ async function getOwnerOrder(orderId, ownerId) {
   return rows[0] || null;
 }
 
+async function getPaymentIntentForOrder(order, stripe) {
+  if (order.stripe_payment_intent_id) return order.stripe_payment_intent_id;
+
+  if (!order.stripe_session_id) {
+    throw new Error('Stripe session missing; refund must be handled manually in Stripe');
+  }
+
+  const session = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
+  const paymentIntentId = typeof session.payment_intent === 'string'
+    ? session.payment_intent
+    : session.payment_intent?.id;
+
+  if (!paymentIntentId) {
+    throw new Error('Payment intent missing from Stripe session; refund must be handled manually in Stripe');
+  }
+
+  await db.query(
+    'UPDATE orders SET stripe_payment_intent_id = $1 WHERE id = $2',
+    [paymentIntentId, order.id]
+  );
+
+  return paymentIntentId;
+}
+
 // Create Stripe Checkout session with advertiser creative uploads
 router.post(
   '/create-checkout-session',
@@ -258,7 +282,7 @@ router.post('/:orderId/approve', authRequired, requireRole('owner'), async (req,
   }
 });
 
-// Owner: deny paid ad request and refund buyer
+// Owner: deny paid ad request and automatically refund buyer
 router.post(
   '/:orderId/deny',
   authRequired,
@@ -273,20 +297,21 @@ router.post(
       if (!order) return res.status(404).json({ error: 'Order not found' });
       if (order.approval_status === 'approved') return res.status(400).json({ error: 'Approved orders cannot be denied' });
       if (order.payment_status !== 'paid') return res.status(400).json({ error: 'Only paid orders can be denied and refunded' });
-      if (!order.stripe_payment_intent_id) return res.status(400).json({ error: 'Payment intent missing; refund must be handled manually in Stripe' });
 
       const stripe = getStripe();
-      await stripe.refunds.create({ payment_intent: order.stripe_payment_intent_id });
+      const paymentIntentId = await getPaymentIntentForOrder(order, stripe);
+      await stripe.refunds.create({ payment_intent: paymentIntentId });
 
       const { rows } = await db.query(
         `UPDATE orders
          SET approval_status = 'denied',
              payment_status = 'refunded',
+             stripe_payment_intent_id = $1,
              denied_at = NOW(),
-             denial_reason = $1
-         WHERE id = $2
+             denial_reason = $2
+         WHERE id = $3
          RETURNING *`,
-        [req.body.reason || null, order.id]
+        [paymentIntentId, req.body.reason || null, order.id]
       );
 
       res.json({ order: rows[0] });
@@ -303,6 +328,17 @@ router.get('/session/:sessionId', authRequired, async (req, res) => {
     await ensureOrderApprovalColumns();
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
+    const paymentIntentId = typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent?.id;
+
+    if (paymentIntentId) {
+      await db.query(
+        'UPDATE orders SET stripe_payment_intent_id = $1 WHERE stripe_session_id = $2 AND stripe_payment_intent_id IS NULL',
+        [paymentIntentId, session.id]
+      );
+    }
+
     const { rows } = await db.query(
       `SELECT
          o.*,
