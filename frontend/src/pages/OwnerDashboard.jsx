@@ -3,23 +3,28 @@ import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
-import { Plus, Edit3, Pause, Play } from 'lucide-react';
+import { Plus, Edit3, Pause, Play, CreditCard } from 'lucide-react';
 
 export default function OwnerDashboard() {
   const { user } = useAuth();
   const [listings, setListings] = useState([]);
   const [salesData, setSalesData] = useState({ orders: [], stats: { total_earnings: 0, paid_count: 0 } });
+  const [connectStatus, setConnectStatus] = useState({ onboarding_complete: false });
   const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [{ data: ld }, { data: sd }] = await Promise.all([
+      const [{ data: ld }, { data: sd }, connectResult] = await Promise.allSettled([
         api.get('/listings', { params: { owner_id: user.id, include_inactive: true } }),
         api.get('/orders/sales'),
+        api.get('/connect/status'),
       ]);
-      setListings(ld.listings || []);
-      setSalesData(sd);
+
+      if (ld.status === 'fulfilled') setListings(ld.value.data.listings || []);
+      if (sd.status === 'fulfilled') setSalesData(sd.value.data);
+      if (connectResult.status === 'fulfilled') setConnectStatus(connectResult.value.data || { onboarding_complete: false });
     } finally {
       setLoading(false);
     }
@@ -27,6 +32,22 @@ export default function OwnerDashboard() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (user) load(); }, [user]);
+
+  const startStripeConnect = async () => {
+    setConnecting(true);
+    try {
+      const { data } = await api.post('/connect/onboard');
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error('Stripe onboarding link was not returned');
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to start Stripe Connect');
+    } finally {
+      setConnecting(false);
+    }
+  };
 
   const toggleStatus = async (l) => {
     const next = l.status === 'active' ? 'paused' : 'active';
@@ -48,6 +69,7 @@ export default function OwnerDashboard() {
   const totalEarnings = paidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
   const activeCampaigns = paidOrders.filter(o => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
   const completedCampaigns = paidOrders.filter(o => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
+  const stripeConnected = Boolean(connectStatus?.onboarding_complete);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12" data-testid="owner-dashboard">
@@ -56,9 +78,38 @@ export default function OwnerDashboard() {
           <div className="text-[10px] uppercase tracking-[0.4em] text-primary mb-2">[ Owner / Dashboard ]</div>
           <h1 className="font-display font-black uppercase text-3xl sm:text-4xl tracking-tight">Hey, {user?.name}.</h1>
         </div>
-        <Link to="/listings/new" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors" data-testid="owner-new-listing-btn">
-          <Plus size={14}/> New Listing
-        </Link>
+        {stripeConnected ? (
+          <Link to="/listings/new" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors" data-testid="owner-new-listing-btn">
+            <Plus size={14}/> New Listing
+          </Link>
+        ) : (
+          <button onClick={startStripeConnect} disabled={connecting} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors disabled:opacity-60" data-testid="owner-connect-stripe-top-btn">
+            <CreditCard size={14}/> {connecting ? 'Connecting...' : 'Connect Stripe'}
+          </button>
+        )}
+      </div>
+
+      <div className={`border p-5 sm:p-6 mb-8 ${stripeConnected ? 'border-acid bg-acid/5' : 'border-primary bg-primary/10'}`} data-testid="owner-stripe-connect-card">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold mb-2 ${stripeConnected ? 'text-acid' : 'text-primary'}`}>
+              {stripeConnected ? 'Stripe payouts connected' : 'Action required'}
+            </div>
+            <h2 className="font-display font-black uppercase text-2xl tracking-tight">
+              {stripeConnected ? 'You can receive seller payouts.' : 'Connect Stripe to receive payouts.'}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-3 max-w-2xl leading-relaxed">
+              {stripeConnected
+                ? 'Your seller payout account is connected. New listing sales can be routed through Stripe Connect.'
+                : 'Website owners must connect Stripe before creating paid listings. This lets BadAdz send seller earnings automatically after a buyer purchases ad space.'}
+            </p>
+          </div>
+          {!stripeConnected && (
+            <button onClick={startStripeConnect} disabled={connecting} className="shrink-0 bg-primary text-primary-foreground px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors disabled:opacity-60" data-testid="owner-connect-stripe-card-btn">
+              {connecting ? 'Opening Stripe...' : 'Connect Stripe'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-8" data-testid="owner-revenue-stats">
@@ -82,7 +133,13 @@ export default function OwnerDashboard() {
       ) : listings.length === 0 ? (
         <div className="border border-border p-12 text-center">
           <p className="text-muted-foreground text-sm">No listings yet.</p>
-          <Link to="/listings/new" className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em]">Create your first listing →</Link>
+          {stripeConnected ? (
+            <Link to="/listings/new" className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em]">Create your first listing →</Link>
+          ) : (
+            <button onClick={startStripeConnect} disabled={connecting} className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em] disabled:opacity-60">
+              Connect Stripe before listing →
+            </button>
+          )}
         </div>
       ) : (
         <div data-testid="owner-listings-table">
