@@ -25,14 +25,8 @@ export default function OwnerDashboard() {
         api.get('/connect/status'),
       ]);
 
-      if (listingsResult.status === 'fulfilled') {
-        setListings(listingsResult.value.data.listings || []);
-      }
-
-      if (salesResult.status === 'fulfilled') {
-        setSalesData(salesResult.value.data || { orders: [], stats: { total_earnings: 0, paid_count: 0 } });
-      }
-
+      if (listingsResult.status === 'fulfilled') setListings(listingsResult.value.data.listings || []);
+      if (salesResult.status === 'fulfilled') setSalesData(salesResult.value.data || { orders: [], stats: { total_earnings: 0, paid_count: 0 } });
       if (connectResult.status === 'fulfilled') {
         setConnectStatus(connectResult.value.data || { onboarding_complete: false });
       } else {
@@ -51,11 +45,8 @@ export default function OwnerDashboard() {
     setConnecting(true);
     try {
       const { data } = await api.post('/connect/onboard');
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        toast.error('Stripe onboarding link was not returned');
-      }
+      if (data?.url) window.location.href = data.url;
+      else toast.error('Stripe onboarding link was not returned');
     } catch (e) {
       toast.error(e.response?.data?.error || 'Failed to start Stripe Connect');
     } finally {
@@ -147,9 +138,6 @@ export default function OwnerDashboard() {
                 ? 'Your seller payout account is connected. New listing sales can be routed through Stripe Connect.'
                 : 'Website owners must connect Stripe before creating paid listings. This lets BadAdz send seller earnings automatically after a buyer purchases ad space.'}
             </p>
-            {!stripeConnected && connectStatus?.status_check_failed && (
-              <p className="text-xs text-primary mt-3">Stripe status check failed. Refresh the page or try connecting again.</p>
-            )}
           </div>
           {!stripeConnected && (
             <button onClick={startStripeConnect} disabled={connecting} className="shrink-0 bg-primary text-primary-foreground px-5 py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors disabled:opacity-60" data-testid="owner-connect-stripe-card-btn">
@@ -160,11 +148,25 @@ export default function OwnerDashboard() {
       </div>
 
       {pendingApprovalOrders.length > 0 && (
-        <div className="border border-gold bg-gold/10 p-5 sm:p-6 mb-8" data-testid="owner-pending-approval-card">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-gold font-bold mb-2">Owner approval needed</div>
-          <h2 className="font-display font-black uppercase text-2xl tracking-tight">{pendingApprovalOrders.length} paid ad request{pendingApprovalOrders.length === 1 ? '' : 's'} waiting.</h2>
-          <p className="text-sm text-muted-foreground mt-3">Review the advertiser and listing below. Approving starts the campaign. Denying attempts to refund the advertiser through Stripe.</p>
-        </div>
+        <section className="mb-10" data-testid="owner-pending-review-section">
+          <div className="border border-gold bg-gold/10 p-5 sm:p-6 mb-4" data-testid="owner-pending-approval-card">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-gold font-bold mb-2">Owner approval needed</div>
+            <h2 className="font-display font-black uppercase text-2xl tracking-tight">{pendingApprovalOrders.length} paid ad request{pendingApprovalOrders.length === 1 ? '' : 's'} waiting.</h2>
+            <p className="text-sm text-muted-foreground mt-3">Review the submitted ad creatives below. Approving starts the campaign. Denying attempts to refund the advertiser through Stripe.</p>
+          </div>
+
+          <div className="space-y-4">
+            {pendingApprovalOrders.map((order) => (
+              <PendingReviewCard
+                key={order.id}
+                order={order}
+                actionBusy={actionBusy}
+                approveOrder={approveOrder}
+                denyOrder={denyOrder}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-8" data-testid="owner-revenue-stats">
@@ -273,18 +275,10 @@ export default function OwnerDashboard() {
                   <td className="p-3 text-right">
                     {o.payment_status === 'paid' && o.approval_status === 'pending' ? (
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => approveOrder(o)}
-                          disabled={Boolean(actionBusy)}
-                          className="border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60"
-                        >
+                        <button onClick={() => approveOrder(o)} disabled={Boolean(actionBusy)} className="border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">
                           {actionBusy === `approve-${o.id}` ? 'Approving...' : 'Approve'}
                         </button>
-                        <button
-                          onClick={() => denyOrder(o)}
-                          disabled={Boolean(actionBusy)}
-                          className="border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60"
-                        >
+                        <button onClick={() => denyOrder(o)} disabled={Boolean(actionBusy)} className="border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">
                           {actionBusy === `deny-${o.id}` ? 'Denying...' : 'Deny'}
                         </button>
                       </div>
@@ -298,6 +292,72 @@ export default function OwnerDashboard() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function PendingReviewCard({ order, actionBusy, approveOrder, denyOrder }) {
+  const creatives = Array.isArray(order.creatives) ? order.creatives : [];
+
+  return (
+    <div className="border border-border bg-card p-5" data-testid={`pending-review-${order.id}`}>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 border-b border-border pb-4 mb-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-gold mb-2">Paid · Pending owner approval</div>
+          <h3 className="font-display font-black uppercase text-2xl tracking-tight">{order.website_name}</h3>
+          <p className="text-sm text-muted-foreground mt-2">Advertiser: <span className="text-foreground">{order.advertiser_name || 'Advertiser'}</span></p>
+          <p className="text-sm text-muted-foreground break-all">Email: <span className="text-foreground">{order.advertiser_email}</span></p>
+          {order.destination_url && (
+            <p className="text-sm text-muted-foreground break-all mt-2">Destination: <a href={order.destination_url} target="_blank" rel="noreferrer" className="text-primary hover:text-acid">{order.destination_url}</a></p>
+          )}
+        </div>
+        <div className="lg:text-right">
+          <div className="font-mono text-xl">${Number(order.price_paid || 0).toFixed(2)}</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Seller earns ${Number(order.seller_earnings || 0).toFixed(2)}</div>
+        </div>
+      </div>
+
+      {order.advertiser_notes && (
+        <div className="border border-border bg-background p-4 mb-4">
+          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Advertiser notes</div>
+          <p className="text-sm whitespace-pre-wrap">{order.advertiser_notes}</p>
+        </div>
+      )}
+
+      <div className="mb-4">
+        <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Submitted banner creatives</div>
+        {creatives.length === 0 ? (
+          <div className="border border-primary text-primary p-4 text-sm">No creative previews found for this order.</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {creatives.map((creative) => (
+              <div key={creative.id} className="border border-border bg-background p-3">
+                <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">{creative.banner_size}</div>
+                <div className="bg-black border border-border p-2 overflow-auto">
+                  <img src={creative.image_url} alt={`${creative.banner_size} ad creative`} className="max-w-full h-auto" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          onClick={() => approveOrder(order)}
+          disabled={Boolean(actionBusy)}
+          className="border border-acid text-acid py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-acid hover:text-black disabled:opacity-60"
+        >
+          {actionBusy === `approve-${order.id}` ? 'Approving...' : 'Approve Ad'}
+        </button>
+        <button
+          onClick={() => denyOrder(order)}
+          disabled={Boolean(actionBusy)}
+          className="border border-primary text-primary py-3 text-xs uppercase tracking-[0.3em] font-bold hover:bg-primary hover:text-primary-foreground disabled:opacity-60"
+        >
+          {actionBusy === `deny-${order.id}` ? 'Denying...' : 'Deny + Refund'}
+        </button>
+      </div>
     </div>
   );
 }
