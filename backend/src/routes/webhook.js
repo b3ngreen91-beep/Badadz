@@ -1,8 +1,18 @@
 const express = require('express');
 const db = require('../db');
-const { sendCampaignPurchaseEmails } = require('../services/email');
 
 const router = express.Router();
+
+async function ensureOrderApprovalColumns() {
+  await db.query(`
+    ALTER TABLE orders
+    ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'awaiting_payment',
+    ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT,
+    ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS denied_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS denial_reason TEXT
+  `);
+}
 
 // IMPORTANT: this route requires the raw body to verify the Stripe signature.
 // It is mounted with express.raw() in server.js BEFORE express.json().
@@ -21,58 +31,34 @@ router.post('/', async (req, res) => {
   }
 
   try {
+    await ensureOrderApprovalColumns();
+
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
       const orderId = session.metadata?.order_id;
-      const listingId = session.metadata?.listing_id;
-      const months = Number(session.metadata?.months || 1);
 
       if (orderId) {
-        const now = new Date();
-        const end = new Date(now);
-        end.setMonth(end.getMonth() + months);
-
         await db.query(
           `UPDATE orders
              SET payment_status='paid',
-                 campaign_starts_at=$1,
-                 campaign_ends_at=$2
-           WHERE id=$3`,
-          [now, end, orderId]
-        );
-        if (listingId) {
-          await db.query(`UPDATE listings SET status='sold' WHERE id=$1`, [listingId]);
-        }
-
-        const { rows } = await db.query(
-          `SELECT
-             o.*,
-             l.website_name,
-             l.website_url,
-             l.user_id AS seller_id,
-             seller.name AS seller_name,
-             seller.email AS seller_email,
-             advertiser.name AS advertiser_name,
-             advertiser.email AS advertiser_email
-           FROM orders o
-           JOIN listings l ON l.id = o.listing_id
-           JOIN users seller ON seller.id = l.user_id
-           JOIN users advertiser ON advertiser.id = o.advertiser_id
-           WHERE o.id = $1`,
-          [orderId]
+                 approval_status='pending',
+                 stripe_payment_intent_id=$1
+           WHERE id=$2`,
+          [session.payment_intent || null, orderId]
         );
 
-        if (rows[0]) {
-          await sendCampaignPurchaseEmails(rows[0]);
-        }
-
-        console.log(`[stripe] order ${orderId} marked paid`);
+        console.log(`[stripe] order ${orderId} marked paid and pending owner approval`);
       }
     } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
       const session = event.data.object;
       const orderId = session.metadata?.order_id;
       if (orderId) {
-        await db.query(`UPDATE orders SET payment_status='failed' WHERE id=$1 AND payment_status='pending'`, [orderId]);
+        await db.query(
+          `UPDATE orders
+             SET payment_status='failed', approval_status='failed'
+           WHERE id=$1 AND payment_status='pending'`,
+          [orderId]
+        );
       }
     }
   } catch (err) {
