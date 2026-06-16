@@ -15,23 +15,72 @@ export default function Footer() {
         </div>
 
         <div>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Platform</div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">
+            Platform
+          </div>
+
           <ul className="space-y-2 text-sm font-mono text-muted-foreground">
-            <li><Link className="hover:text-white" to="/how-it-works">How It Works</Link></li>
-            <li><Link className="hover:text-white" to="/contact">Contact / Support</Link></li>
-            <li><Link className="hover:text-white" to="/marketplace">Marketplace</Link></li>
-            <li><Link className="hover:text-white" to="/my-listings">Owner Tools</Link></li>
-            <li><Link className="hover:text-white" to="/my-campaigns">Advertiser Tools</Link></li>
-            <li><Link className="hover:text-white" to="/refund-policy">Stripe Payments</Link></li>
+            <li>
+              <Link className="hover:text-white" to="/how-it-works">
+                How It Works
+              </Link>
+            </li>
+
+            <li>
+              <Link className="hover:text-white" to="/contact">
+                Contact / Support
+              </Link>
+            </li>
+
+            <li>
+              <Link className="hover:text-white" to="/">
+                Marketplace
+              </Link>
+            </li>
+
+            <li>
+              <Link className="hover:text-white" to="/dashboard/owner">
+                Owner Tools
+              </Link>
+            </li>
+
+            <li>
+              <Link className="hover:text-white" to="/dashboard/advertiser">
+                Advertiser Tools
+              </Link>
+            </li>
+
+            <li>
+              <Link className="hover:text-white" to="/refund-policy">
+                Stripe Payments
+              </Link>
+            </li>
           </ul>
         </div>
 
         <div>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Legal</div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">
+            Legal
+          </div>
+
           <ul className="space-y-2 text-sm font-mono text-muted-foreground">
-            <li><Link className="hover:text-white" to="/terms">Terms of Service</Link></li>
-            <li><Link className="hover:text-white" to="/privacy">Privacy Policy</Link></li>
-            <li><Link className="hover:text-white" to="/refund-policy">Refund Policy</Link></li>
+            <li>
+              <Link className="hover:text-white" to="/terms">
+                Terms of Service
+              </Link>
+            </li>
+
+            <li>
+              <Link className="hover:text-white" to="/privacy">
+                Privacy Policy
+              </Link>
+            </li>
+
+            <li>
+              <Link className="hover:text-white" to="/refund-policy">
+                Refund Policy
+              </Link>
+            </li>
           </ul>
         </div>
       </div>
