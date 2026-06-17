@@ -97,6 +97,9 @@ export default function OwnerDashboard() {
   const totalEarnings = approvedPaidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
   const activeCampaigns = approvedPaidOrders.filter((o) => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
   const completedCampaigns = approvedPaidOrders.filter((o) => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
+  const payoutPaidCount = approvedPaidOrders.filter((o) => o.seller_payout_status === 'paid').length;
+  const payoutFailedCount = approvedPaidOrders.filter((o) => o.seller_payout_status === 'failed').length;
+  const payoutSkippedCount = approvedPaidOrders.filter((o) => o.seller_payout_status === 'skipped').length;
   const stripeConnected = Boolean(connectStatus?.onboarding_complete);
 
   return (
@@ -169,12 +172,26 @@ export default function OwnerDashboard() {
         <Stat label="Needs Approval" value={pendingApprovalOrders.length} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-border border border-border mb-12" data-testid="owner-listing-stats">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-border border border-border mb-8" data-testid="owner-listing-stats">
         <Stat label="Active Listings" value={activeCount} />
         <Stat label="Sold Listings" value={soldCount} />
         <Stat label="Paused Listings" value={pausedCount} />
         <Stat label="Active Campaigns" value={activeCampaigns} highlight />
         <Stat label="Completed" value={completedCampaigns} />
+      </div>
+
+      <div className="border border-border bg-card p-5 sm:p-6 mb-12" data-testid="owner-payout-status-card">
+        <div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-2">Seller payout status</div>
+        <h2 className="font-display font-black uppercase text-2xl tracking-tight mb-4">Approved campaign payouts</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border">
+          <MiniStat label="Paid" value={payoutPaidCount} />
+          <MiniStat label="Skipped $0" value={payoutSkippedCount} />
+          <MiniStat label="Failed" value={payoutFailedCount} />
+          <MiniStat label="Total Approved" value={approvedPaidOrders.length} />
+        </div>
+        <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
+          Paid means BadAdz created the Stripe transfer to the seller account. Skipped means no payout was needed, usually for a $0 test ad. Failed means Stripe did not complete the seller transfer and the order needs attention.
+        </p>
       </div>
 
       <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight mb-4">My Listings</h2>
@@ -236,7 +253,7 @@ export default function OwnerDashboard() {
         <div className="border border-border p-8 sm:p-12 text-center text-sm text-muted-foreground" data-testid="owner-no-sales">No sales yet.</div>
       ) : (
         <div className="border border-border bg-card overflow-x-auto" data-testid="owner-sales-table">
-          <table className="w-full text-sm min-w-[900px]">
+          <table className="w-full text-sm min-w-[980px]">
             <thead className="border-b border-border bg-secondary">
               <tr className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
                 <th className="text-left p-3">Date</th>
@@ -247,6 +264,7 @@ export default function OwnerDashboard() {
                 <th className="text-right p-3">You Earn</th>
                 <th className="text-left p-3">Payment</th>
                 <th className="text-left p-3">Approval</th>
+                <th className="text-left p-3">Payout</th>
                 <th className="text-right p-3">Actions</th>
               </tr>
             </thead>
@@ -261,6 +279,7 @@ export default function OwnerDashboard() {
                   <td className="p-3 text-right font-mono text-acid">${Number(order.seller_earnings || 0).toFixed(2)}</td>
                   <td className="p-3"><StatusText value={order.payment_status} /></td>
                   <td className="p-3"><StatusText value={order.approval_status || 'awaiting_payment'} /></td>
+                  <td className="p-3"><PayoutStatus order={order} /></td>
                   <td className="p-3 text-right">
                     {order.payment_status === 'paid' && order.approval_status === 'pending' ? (
                       <div className="flex justify-end gap-2">
@@ -361,6 +380,20 @@ function ListingCard({ listing, toggleStatus }) {
       </div>
     </div>
   );
+}
+
+function PayoutStatus({ order }) {
+  const status = order.seller_payout_status || 'not_started';
+  const earnings = Number(order.seller_earnings || 0);
+
+  if (order.payment_status !== 'paid' || order.approval_status !== 'approved') {
+    return <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">● Not due</span>;
+  }
+
+  if (status === 'paid') return <span className="text-[10px] uppercase tracking-[0.2em] text-acid font-bold">● Seller paid</span>;
+  if (status === 'failed') return <span className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">● Payout failed</span>;
+  if (status === 'skipped' || earnings <= 0) return <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">● Skipped $0</span>;
+  return <span className="text-[10px] uppercase tracking-[0.2em] text-gold font-bold">● Processing</span>;
 }
 
 function StatusText({ value }) {
