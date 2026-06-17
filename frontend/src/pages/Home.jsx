@@ -56,30 +56,30 @@ export default function Home() {
         }}
         data-testid="hero"
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20 md:py-32 grid grid-cols-1 md:grid-cols-12 gap-8 items-end">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-20 md:py-32 grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-end">
           <div className="md:col-span-8 animate-fade-in-up">
-            <div className="text-[10px] uppercase tracking-[0.3em] sm:tracking-[0.4em] text-primary font-bold mb-4">
+            <div className="text-[10px] uppercase tracking-[0.3em] sm:tracking-[0.4em] text-primary font-bold mb-3 sm:mb-4">
               [ MARKETPLACE / V.1 ]
             </div>
 
-            <div className="mb-5 inline-block border border-primary bg-primary/10 px-4 py-3 text-xs text-muted-foreground leading-relaxed max-w-xl">
+            <div className="mb-4 sm:mb-5 inline-block border border-primary bg-primary/10 px-4 py-3 text-xs text-muted-foreground leading-relaxed max-w-xl">
               <span className="block font-bold uppercase tracking-[0.25em] text-primary mb-1">
                 BadAdz is live in beta.
               </span>
-              We are currently accepting early website owners and advertisers while we improve the platform.
+              Early website owners and advertisers can test direct banner ad deals now.
             </div>
 
-            <h1 className="font-display font-black tracking-tighter uppercase text-4xl sm:text-5xl lg:text-6xl leading-[0.9] break-words">
+            <h1 className="font-display font-black tracking-tighter uppercase text-3xl sm:text-5xl lg:text-6xl leading-[0.9] break-words">
               Sell ad space.<br />
               Buy ad space.<br />
               <span className="text-primary">Skip the agency.</span>
             </h1>
 
-            <p className="mt-6 max-w-xl text-sm md:text-base text-muted-foreground leading-relaxed">
-              BadAdz is the no-nonsense marketplace where independent website owners list banner inventory and advertisers buy it directly. 20% platform fee. Stripe payments. Direct owner contact after purchase.
+            <p className="mt-4 sm:mt-6 max-w-xl text-sm md:text-base text-muted-foreground leading-relaxed">
+              A direct marketplace for banner inventory. Advertisers upload real ad creatives, owners approve or deny, and payments run through Stripe.
             </p>
 
-            <div className="mt-8 grid grid-cols-1 sm:flex sm:flex-wrap gap-3">
+            <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:flex sm:flex-wrap gap-3">
               <a
                 href="#marketplace"
                 className="bg-primary text-primary-foreground px-5 sm:px-6 py-3 text-center text-xs uppercase tracking-[0.24em] sm:tracking-[0.3em] font-bold hover:bg-acid hover:text-black transition-colors"
@@ -98,7 +98,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="md:col-span-4 grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 gap-px bg-border border border-border" data-testid="hero-stats">
+          <div className="md:col-span-4 grid grid-cols-3 gap-px bg-border border border-border" data-testid="hero-stats">
             <Stat label="Listings" value={stats.total} />
             <Stat label="Avg $/mo" value={`$${stats.avg}`} />
             <Stat label="Top $/mo" value={`$${stats.max}`} />
@@ -106,10 +106,12 @@ export default function Home() {
         </div>
       </section>
 
-      <Marquee />
+      <div className="hidden sm:block">
+        <Marquee />
+      </div>
 
-      <section id="marketplace" className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16 border-b border-border">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8">
+      <section id="marketplace" className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16 border-b border-border">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6 sm:mb-8">
           <div>
             <div className="text-[10px] uppercase tracking-[0.32em] sm:tracking-[0.4em] text-muted-foreground mb-2">
               [ 01 / Inventory ]
@@ -244,12 +246,12 @@ export default function Home() {
 
 function Stat({ label, value }) {
   return (
-    <div className="bg-background p-4">
-      <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+    <div className="bg-background p-3 sm:p-4">
+      <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.25em] text-muted-foreground">
         {label}
       </div>
 
-      <div className="font-display font-black text-2xl mt-1 text-foreground">
+      <div className="font-display font-black text-xl sm:text-2xl mt-1 text-foreground">
         {value}
       </div>
     </div>
