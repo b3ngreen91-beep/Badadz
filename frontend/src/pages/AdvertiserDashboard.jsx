@@ -15,6 +15,7 @@ function getCampaignStatus(order) {
       label: 'Refunded / Denied',
       tone: 'text-primary border-primary bg-primary/10',
       help: 'The website owner denied this ad request and the payment was refunded or marked for refund.',
+      archiveable: true,
     };
   }
 
@@ -23,6 +24,7 @@ function getCampaignStatus(order) {
       label: 'Awaiting Payment',
       tone: 'text-gold border-gold bg-gold/10',
       help: 'Checkout has not been completed yet.',
+      archiveable: true,
     };
   }
 
@@ -31,6 +33,7 @@ function getCampaignStatus(order) {
       label: 'Pending Owner Review',
       tone: 'text-gold border-gold bg-gold/10',
       help: 'Your payment went through. The website owner is reviewing your submitted ad creative.',
+      archiveable: false,
     };
   }
 
@@ -39,6 +42,7 @@ function getCampaignStatus(order) {
       label: 'Completed',
       tone: 'text-muted-foreground border-border bg-background',
       help: 'This campaign period has ended.',
+      archiveable: true,
     };
   }
 
@@ -47,6 +51,7 @@ function getCampaignStatus(order) {
       label: 'Approved / Live',
       tone: 'text-acid border-acid bg-acid/10',
       help: 'The website owner approved this ad. Your campaign is active or ready to run.',
+      archiveable: false,
     };
   }
 
@@ -54,13 +59,20 @@ function getCampaignStatus(order) {
     label: `${payment || 'unknown'} / ${approval || 'unknown'}`,
     tone: 'text-muted-foreground border-border bg-background',
     help: 'Campaign status is updating.',
+    archiveable: true,
   };
+}
+
+function archiveStorageKey(userId) {
+  return `badadz_archived_campaigns_${userId || 'guest'}`;
 }
 
 export default function AdvertiserDashboard() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivedIds, setArchivedIds] = useState([]);
 
   useEffect(() => {
     api.get('/orders/my')
@@ -68,46 +80,86 @@ export default function AdvertiserDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const activeCount = orders.filter((o) => {
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(archiveStorageKey(user?.id));
+      setArchivedIds(raw ? JSON.parse(raw) : []);
+    } catch {
+      setArchivedIds([]);
+    }
+  }, [user?.id]);
+
+  const saveArchivedIds = (nextIds) => {
+    setArchivedIds(nextIds);
+    localStorage.setItem(archiveStorageKey(user?.id), JSON.stringify(nextIds));
+  };
+
+  const archiveCampaign = (orderId) => {
+    saveArchivedIds(Array.from(new Set([...archivedIds, orderId])));
+  };
+
+  const restoreCampaign = (orderId) => {
+    saveArchivedIds(archivedIds.filter((id) => id !== orderId));
+  };
+
+  const visibleOrders = showArchived ? orders : orders.filter((o) => !archivedIds.includes(o.id));
+  const archivedCount = orders.filter((o) => archivedIds.includes(o.id)).length;
+
+  const activeCount = visibleOrders.filter((o) => {
     const status = getCampaignStatus(o);
     return status.label === 'Approved / Live';
   }).length;
-  const pendingCount = orders.filter((o) => getCampaignStatus(o).label === 'Pending Owner Review').length;
-  const totalSpend = orders.filter(o => o.payment_status === 'paid' || o.payment_status === 'refunded').reduce((s, o) => s + Number(o.price_paid || 0), 0);
+  const pendingCount = visibleOrders.filter((o) => getCampaignStatus(o).label === 'Pending Owner Review').length;
+  const totalSpend = visibleOrders.filter(o => o.payment_status === 'paid' || o.payment_status === 'refunded').reduce((s, o) => s + Number(o.price_paid || 0), 0);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12" data-testid="advertiser-dashboard">
       <div className="text-[10px] uppercase tracking-[0.4em] text-primary mb-2">[ Advertiser / Dashboard ]</div>
       <h1 className="font-display font-black uppercase text-3xl sm:text-4xl tracking-tight mb-8">Hey, {user?.name}.</h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-12" data-testid="advertiser-stats">
-        <Stat label="Total Campaigns" value={orders.length} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-8" data-testid="advertiser-stats">
+        <Stat label="Visible Campaigns" value={visibleOrders.length} />
         <Stat label="Pending Review" value={pendingCount} />
         <Stat label="Active" value={activeCount} />
         <Stat label="Lifetime Spend" value={`$${totalSpend.toFixed(2)}`} highlight />
       </div>
 
-      <h2 className="font-display font-black uppercase text-xl tracking-tight mb-4">My Campaigns</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <h2 className="font-display font-black uppercase text-xl tracking-tight">My Campaigns</h2>
+        {archivedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowArchived((v) => !v)}
+            className="border border-border px-4 py-2 text-[10px] uppercase tracking-[0.25em] hover:border-primary hover:text-primary"
+            data-testid="toggle-archived-campaigns"
+          >
+            {showArchived ? 'Hide Archived' : `Show Archived (${archivedCount})`}
+          </button>
+        )}
+      </div>
 
       {loading ? (
         <div className="text-muted-foreground text-xs uppercase tracking-[0.3em] py-12">Loading...</div>
-      ) : orders.length === 0 ? (
+      ) : visibleOrders.length === 0 ? (
         <div className="border border-border p-12 text-center">
-          <p className="text-sm text-muted-foreground mb-4">No campaigns yet.</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            {orders.length > 0 ? 'No visible campaigns. Show archived campaigns to view hidden records.' : 'No campaigns yet.'}
+          </p>
           <Link to="/" className="text-primary text-xs uppercase tracking-[0.3em]" data-testid="advertiser-browse-link">Browse the marketplace →</Link>
         </div>
       ) : (
         <div className="space-y-4" data-testid="advertiser-orders-list">
-          {orders.map((o) => {
+          {visibleOrders.map((o) => {
             const status = getCampaignStatus(o);
             const creatives = Array.isArray(o.creatives) ? o.creatives : [];
+            const isArchived = archivedIds.includes(o.id);
 
             return (
-              <div key={o.id} className="border border-border bg-card p-5">
+              <div key={o.id} className={`border bg-card p-5 ${isArchived ? 'border-primary/50 opacity-80' : 'border-border'}`}>
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b border-border pb-4 mb-4">
                   <div>
                     <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">
-                      {new Date(o.created_at).toLocaleDateString()} · {o.category || 'General'}
+                      {new Date(o.created_at).toLocaleDateString()} · {o.category || 'General'} {isArchived ? '· Archived' : ''}
                     </div>
                     <h3 className="font-display font-black uppercase text-xl tracking-tight">
                       {o.website_name}
@@ -199,6 +251,30 @@ export default function AdvertiserDashboard() {
                     )}
                   </ul>
                 </div>
+
+                {status.archiveable && (
+                  <div className="mt-4 flex justify-end">
+                    {isArchived ? (
+                      <button
+                        type="button"
+                        onClick={() => restoreCampaign(o.id)}
+                        className="border border-acid text-acid px-4 py-2 text-[10px] uppercase tracking-[0.25em] hover:bg-acid hover:text-black"
+                        data-testid={`restore-campaign-${o.id}`}
+                      >
+                        Restore Campaign
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => archiveCampaign(o.id)}
+                        className="border border-border px-4 py-2 text-[10px] uppercase tracking-[0.25em] hover:border-primary hover:text-primary"
+                        data-testid={`archive-campaign-${o.id}`}
+                      >
+                        Archive Campaign
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
