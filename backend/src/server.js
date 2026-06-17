@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 
 const authRouter = require('./routes/auth');
 const listingsRouter = require('./routes/listings');
+const marketplaceRouter = require('./routes/marketplace');
 const orderPayoutsRouter = require('./routes/orderPayouts');
 const ordersRouter = require('./routes/orders');
 const orderAutoCreativesRouter = require('./routes/orderAutoCreatives');
@@ -18,38 +19,29 @@ const { expireEndedCampaigns } = require('./services/expireCampaigns');
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', 1); // honor X-Forwarded-* on Render's proxy
+app.set('trust proxy', 1);
 
-// ---- CORS ----
 const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
   origin: frontendOrigin === '*' ? true : frontendOrigin.split(',').map((s) => s.trim()),
   credentials: true,
 }));
 
-// ---- Stripe webhook (raw body) MUST be mounted before express.json() ----
 app.use('/api/orders/webhook', express.raw({ type: 'application/json' }), webhookRouter);
 
-// ---- Standard middleware ----
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 if (process.env.NODE_ENV !== 'test') app.use(morgan('tiny'));
 
-// ---- Rate limits on auth ----
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false }));
 
-// ---- Diagnostics / health (Render port detection probes "/") ----
-app.get('/', (_req, res) => res.json({
-  service: 'badadz-api',
-  status: 'ok',
-  version: '1.0.0',
-  docs: '/api',
-}));
+app.get('/', (_req, res) => res.json({ service: 'badadz-api', status: 'ok', version: '1.0.0', docs: '/api' }));
 app.get('/api', (_req, res) => res.json({
   service: 'badadz-api',
   endpoints: [
     'GET  /api/health',
+    'GET  /api/marketplace/stats',
     'POST /api/auth/register',
     'POST /api/auth/login',
     'GET  /api/auth/me',
@@ -74,39 +66,27 @@ app.get('/api', (_req, res) => res.json({
 }));
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'badadz-api' }));
 
-// ---- Mounted routers ----
 app.use('/api/auth', authRouter);
 app.use('/api/connect', connectRouter);
+app.use('/api/marketplace', marketplaceRouter);
 app.use('/api/listings', listingsRouter);
-// Public ad serving routes are intentionally outside /api so publishers can paste clean script tags.
 app.use('/ads', adsRouter);
-// Auto creative checkout route is mounted before legacy order routes so one-upload resizing works.
 app.use('/api/orders', orderAutoCreativesRouter);
-// Mount payout-first order routes before the legacy orders router.
-// This lets approval require a real seller transfer and lets /orders/sales retry unpaid seller transfers.
 app.use('/api/orders', orderPayoutsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/admin', adminRouter);
 
-// ---- 404 (path-less so it works in Express 4 AND 5) ----
 app.use((req, res) => res.status(404).json({ error: 'Not found', path: req.originalUrl }));
 
-// ---- Error handler ----
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
   console.error('[error]', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// ---- Process-level safety nets (don't crash on errors — log them) ----
-process.on('unhandledRejection', (reason) => {
-  console.error('[unhandledRejection]', reason);
-});
-process.on('uncaughtException', (err) => {
-  console.error('[uncaughtException]', err);
-});
+process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason));
+process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
 
-// ---- Startup log (visible in Render logs for verification) ----
 function printRoutes(application) {
   const lines = [];
   const collect = (stack, prefix = '') => {
@@ -137,12 +117,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('Registered routes:');
   printRoutes(app).forEach((l) => console.log(l));
 
-  expireEndedCampaigns().catch((err) => {
-    console.error('[campaigns] Startup expiration check failed:', err);
-  });
+  expireEndedCampaigns().catch((err) => console.error('[campaigns] Startup expiration check failed:', err));
 });
 
-// Graceful shutdown — important on Render redeploys
 ['SIGINT', 'SIGTERM'].forEach((sig) => {
   process.on(sig, () => {
     console.log(`[${sig}] shutting down`);
