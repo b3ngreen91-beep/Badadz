@@ -66,8 +66,18 @@ async function uploadCreative(file, orderId, bannerSize, autoResize) {
       {
         folder: `badadz/campaigns/${orderId}`,
         resource_type: 'image',
-        public_id: `${autoResize ? 'auto' : 'manual'}-${bannerSize}-${Date.now()}`,
-        ...(autoResize ? { transformation: [{ width: dims.width, height: dims.height, crop: 'fill', gravity: 'auto' }] } : {}),
+        public_id: `${autoResize ? 'auto-fit' : 'manual'}-${bannerSize}-${Date.now()}`,
+        // Auto-generated sizes should preserve the whole design instead of cutting off text/logos.
+        // Exact uploaded sizes are stored untouched. Auto sizes are fitted onto a black canvas.
+        ...(autoResize ? {
+          transformation: [{
+            width: dims.width,
+            height: dims.height,
+            crop: 'pad',
+            background: 'black',
+            gravity: 'center',
+          }],
+        } : {}),
       },
       (error, result) => {
         if (error) return reject(error);
@@ -77,8 +87,7 @@ async function uploadCreative(file, orderId, bannerSize, autoResize) {
 
     stream.end(file.buffer);
   });
-}
-
+}\n
 router.post(
   '/create-checkout-session',
   authRequired,
