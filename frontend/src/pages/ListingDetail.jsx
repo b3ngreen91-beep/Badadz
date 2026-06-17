@@ -18,9 +18,7 @@ function readImageDimensions(file) {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => {
-      resolve({ width: img.naturalWidth, height: img.naturalHeight, objectUrl });
-    };
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, objectUrl });
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
       reject(new Error('Could not read image dimensions'));
@@ -39,6 +37,7 @@ export default function ListingDetail() {
   const [buying, setBuying] = useState(false);
   const [destinationUrl, setDestinationUrl] = useState('');
   const [advertiserNotes, setAdvertiserNotes] = useState('');
+  const [showAdvancedUploads, setShowAdvancedUploads] = useState(false);
   const [autoCreativeFile, setAutoCreativeFile] = useState(null);
   const [autoCreativePreview, setAutoCreativePreview] = useState('');
   const [autoCreativeMeta, setAutoCreativeMeta] = useState(null);
@@ -48,7 +47,10 @@ export default function ListingDetail() {
   const [creativeMeta, setCreativeMeta] = useState({});
 
   useEffect(() => {
-    api.get(`/listings/${id}`).then(({ data }) => setListing(data.listing)).catch(() => setListing(null)).finally(() => setLoading(false));
+    api.get(`/listings/${id}`)
+      .then(({ data }) => setListing(data.listing))
+      .catch(() => setListing(null))
+      .finally(() => setLoading(false));
   }, [id]);
 
   const onAutoCreativeChange = async (e) => {
@@ -65,7 +67,7 @@ export default function ListingDetail() {
       setAutoCreativeFile(file);
       setAutoCreativePreview(meta.objectUrl);
       setAutoCreativeMeta({ width: meta.width, height: meta.height });
-      toast.success('Image ready. BadAdz will auto-format banner sizes after checkout.');
+      toast.success('Image ready');
     } catch (_err) {
       e.target.value = '';
       setAutoCreativeFile(null);
@@ -95,7 +97,7 @@ export default function ListingDetail() {
         setCreativePreviews((prev) => ({ ...prev, [size]: '' }));
         setCreativeMeta((prev) => ({ ...prev, [size]: { width, height } }));
         setCreativeErrors((prev) => ({ ...prev, [size]: `Wrong size. ${size} requires ${expected.width}×${expected.height}px. Your image is ${width}×${height}px.` }));
-        toast.error(`${size} image must be exactly ${expected.width}×${expected.height}px`);
+        toast.error(`${size} must be exactly ${expected.width}×${expected.height}px`);
         return;
       }
       setCreativeFiles((prev) => ({ ...prev, [size]: file }));
@@ -116,7 +118,7 @@ export default function ListingDetail() {
     if (user.role !== 'advertiser') { toast.error('Only advertisers can buy. Create an advertiser account.'); return; }
     if (!destinationUrl.trim()) { toast.error('Enter the destination URL for your ad.'); return; }
     if (Object.values(creativeErrors).some(Boolean)) { toast.error('Fix banner size errors before paying.'); return; }
-    if (!autoCreativeFile && !Object.values(creativeFiles).some(Boolean)) { toast.error('Upload one image for BadAdz to format, or upload an exact banner size.'); return; }
+    if (!autoCreativeFile && !Object.values(creativeFiles).some(Boolean)) { toast.error('Upload one image, or upload exact banner sizes.'); return; }
 
     setBuying(true);
     try {
@@ -141,6 +143,7 @@ export default function ListingDetail() {
 
   const total = Number(listing.monthly_price) * months;
   const isOwner = user && listing.user_id === user.id;
+  const exactUploadCount = Object.values(creativeFiles).filter(Boolean).length;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12" data-testid="listing-detail-page">
@@ -176,18 +179,22 @@ export default function ListingDetail() {
                 <div><label className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground block mb-2">Ad destination URL *</label><input type="url" placeholder="https://your-site.com/offer" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary" data-testid="ad-destination-input" /></div>
                 <div><label className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground block mb-2">Advertiser notes</label><textarea rows={3} placeholder="Tell the site owner what this campaign is promoting." value={advertiserNotes} onChange={(e) => setAdvertiserNotes(e.target.value)} className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary" data-testid="ad-notes-input" /></div>
 
-                <div className="border border-acid bg-acid/5 p-3">
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-acid font-bold mb-2">Recommended: upload one image</div>
-                  <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">Upload one good banner or ad image. BadAdz will automatically format it into standard ad sizes: 728x90, 300x250, 320x50, 160x600, and 970x250.</p>
+                <div className="border border-acid bg-acid/5 p-4">
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-acid font-bold mb-2">Upload your ad</div>
+                  <h3 className="font-display font-black uppercase text-xl tracking-tight mb-2">Start with one image</h3>
+                  <p className="text-[12px] text-muted-foreground mb-3 leading-relaxed">Upload a clean ad image or logo. BadAdz will fit the full design onto standard banner canvases without cutting it off. For best results, use a wide banner-style image.</p>
                   <input type="file" accept="image/*" onChange={onAutoCreativeChange} className="w-full text-xs" data-testid="auto-creative-input" />
-                  {autoCreativeMeta && <div className="mt-2 text-[11px] text-acid">Ready: {autoCreativeMeta.width}×{autoCreativeMeta.height}px. BadAdz will crop/resize copies after checkout.</div>}
+                  {autoCreativeMeta && <div className="mt-2 text-[11px] text-acid">Ready: {autoCreativeMeta.width}×{autoCreativeMeta.height}px. Auto-generated banners will use black padding when needed.</div>}
                   {autoCreativePreview && <div className="mt-3 border border-border bg-black p-2 overflow-hidden"><img src={autoCreativePreview} alt="Auto creative preview" className="max-w-full h-auto" /></div>}
                 </div>
 
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Advanced: exact banner sizes</div>
-                  <p className="text-[11px] text-muted-foreground mb-3">Optional. Upload exact sizes only if you already have professional banner files.</p>
-                  <div className="space-y-3">
+                <div className="border border-border p-3">
+                  <button type="button" onClick={() => setShowAdvancedUploads((v) => !v)} className="w-full text-left text-[10px] uppercase tracking-[0.25em] text-muted-foreground hover:text-primary">
+                    {showAdvancedUploads ? 'Hide exact-size uploads' : 'Optional: upload exact-size banners'} {exactUploadCount > 0 ? `(${exactUploadCount} added)` : ''}
+                  </button>
+                  <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">Exact-size files override the auto-generated version for that size. Use this if you already have professional banner files.</p>
+
+                  {showAdvancedUploads && <div className="space-y-3 mt-3">
                     {CREATIVE_SIZES.map((size) => {
                       const expected = CREATIVE_DIMENSIONS[size];
                       const meta = creativeMeta[size];
@@ -199,7 +206,7 @@ export default function ListingDetail() {
                         {creativePreviews[size] && <div className="mt-3 border border-border bg-black p-2 overflow-hidden"><img src={creativePreviews[size]} alt={`${size} preview`} className="max-w-full h-auto" /></div>}
                       </div>;
                     })}
-                  </div>
+                  </div>}
                 </div>
               </div>
             )}
