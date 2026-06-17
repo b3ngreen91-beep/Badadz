@@ -30,6 +30,20 @@ async function ensureConnectColumns() {
   `);
 }
 
+async function ensureAdSlotColumns() {
+  await db.query(`ALTER TABLE listings ADD COLUMN IF NOT EXISTS ad_slot_id TEXT`);
+  await db.query(`
+    UPDATE listings
+    SET ad_slot_id = gen_random_uuid()::text
+    WHERE ad_slot_id IS NULL OR ad_slot_id = ''
+  `);
+  await db.query(`
+    DO $$ BEGIN
+      ALTER TABLE listings ADD CONSTRAINT listings_ad_slot_id_unique UNIQUE (ad_slot_id);
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `);
+}
+
 async function requireStripeConnectReady(userId, res) {
   await ensureConnectColumns();
 
@@ -87,7 +101,7 @@ router.get(
     query('category').optional().isString(),
     query('min_price').optional().isFloat({ min: 0 }),
     query('max_price').optional().isFloat({ min: 0 }),
-    query('owner_id').optional().isInt(),
+    query('owner_id').optional().isString(),
     query('include_inactive').optional().isBoolean().toBoolean(),
   ],
   async (req, res) => {
@@ -134,6 +148,7 @@ router.get(
     `;
 
     try {
+      await ensureAdSlotColumns();
       const { rows } = await db.query(sql, params);
       res.json({ listings: rows });
     } catch (err) {
@@ -162,6 +177,7 @@ router.get('/meta/categories', async (_req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
+    await ensureAdSlotColumns();
     const { rows } = await db.query(
       `
       SELECT l.*, u.name AS owner_name
@@ -202,6 +218,7 @@ router.post(
     const { website_name, website_url, description = '', category, monthly_price, image_url, traffic_stats, status = 'active' } = req.body;
 
     try {
+      await ensureAdSlotColumns();
       const connectReady = await requireStripeConnectReady(req.user.id, res);
       if (!connectReady) return;
 
@@ -222,9 +239,9 @@ router.post(
         `
         INSERT INTO listings (
           user_id, website_name, website_url, description, category,
-          monthly_price, image_url, traffic_stats, status
+          monthly_price, image_url, traffic_stats, status, ad_slot_id
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,gen_random_uuid()::text)
         RETURNING *
         `,
         [req.user.id, website_name, website_url, description, category, price, finalImageUrl, traffic_stats, status]
@@ -258,6 +275,7 @@ router.put(
     if (!errors.isEmpty()) return res.status(400).json({ error: 'Invalid input', details: errors.array() });
 
     try {
+      await ensureAdSlotColumns();
       const existing = await db.query('SELECT * FROM listings WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
       if (existing.rows.length === 0) return res.status(404).json({ error: 'Listing not found' });
 
