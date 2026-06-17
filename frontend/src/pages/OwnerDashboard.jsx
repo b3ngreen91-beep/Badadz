@@ -1,9 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../lib/api';
+import api, { API_BASE } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
-import { Plus, Edit3, Pause, Play, CreditCard } from 'lucide-react';
+import { Plus, Edit3, Pause, Play, CreditCard, Copy } from 'lucide-react';
+
+function getEmbedCode(listing) {
+  const slotId = listing.ad_slot_id || listing.id;
+  return `<script async src="${API_BASE}/serve/${slotId}.js"></script>`;
+}
+
+async function copyEmbedCode(listing) {
+  try {
+    await navigator.clipboard.writeText(getEmbedCode(listing));
+    toast.success('Embed code copied');
+  } catch (_err) {
+    toast.error('Could not copy embed code');
+  }
+}
 
 export default function OwnerDashboard() {
   const { user } = useAuth();
@@ -55,7 +69,7 @@ export default function OwnerDashboard() {
       await api.put(`/listings/${listing.id}`, { status: next });
       toast.success(`Listing ${next}`);
       load();
-    } catch (e) {
+    } catch (_e) {
       toast.error('Failed to update status');
     }
   };
@@ -88,13 +102,14 @@ export default function OwnerDashboard() {
   };
 
   const approvedPaidOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && o.approval_status === 'approved');
-  const pendingApprovalOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && o.approval_status === 'pending');
+  const pendingApprovalOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && ['pending', 'awaiting_approval'].includes(o.approval_status));
   const activeCount = listings.filter((l) => l.status === 'active').length;
-  const pausedCount = listings.filter((l) => l.status === 'paused').length;
   const totalListings = listings.length;
   const totalSales = approvedPaidOrders.reduce((sum, o) => sum + Number(o.price_paid || 0), 0);
   const totalFees = approvedPaidOrders.reduce((sum, o) => sum + Number(o.platform_fee || 0), 0);
   const totalEarnings = approvedPaidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
+  const totalImpressions = approvedPaidOrders.reduce((sum, o) => sum + Number(o.impression_count || 0), 0);
+  const totalClicks = approvedPaidOrders.reduce((sum, o) => sum + Number(o.click_count || 0), 0);
   const activeCampaigns = approvedPaidOrders.filter((o) => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
   const completedCampaigns = approvedPaidOrders.filter((o) => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
   const payoutPaidCount = approvedPaidOrders.filter((o) => o.seller_payout_status === 'paid').length;
@@ -130,17 +145,19 @@ export default function OwnerDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-7" data-testid="owner-listing-stats">
         <Stat label="Active Listings" value={activeCount} />
         <Stat label="Total Listings" value={totalListings} />
-        <Stat label="Active Campaigns" value={activeCampaigns} highlight />
-        <Stat label="Completed" value={completedCampaigns} />
+        <Stat label="Ad Impressions" value={totalImpressions.toLocaleString()} highlight />
+        <Stat label="Ad Clicks" value={totalClicks.toLocaleString()} />
       </div>
 
       <section className="mb-8">
         <div className="flex items-end justify-between gap-3 mb-4">
-          <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight">My Listings</h2>
-          {stripeConnected && (
-            <Link to="/listings/new" className="text-primary text-[10px] uppercase tracking-[0.25em] font-bold">Add Listing →</Link>
-          )}
+          <div>
+            <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight">My Listings</h2>
+            <p className="text-xs text-muted-foreground mt-2">Copy the embed code once and paste it on your website. BadAdz will automatically show approved campaigns in that slot.</p>
+          </div>
+          {stripeConnected && <Link to="/listings/new" className="text-primary text-[10px] uppercase tracking-[0.25em] font-bold">Add Listing →</Link>}
         </div>
+
         {loading ? (
           <div className="text-muted-foreground text-xs uppercase tracking-[0.3em] py-8">Loading...</div>
         ) : listings.length === 0 ? (
@@ -159,23 +176,25 @@ export default function OwnerDashboard() {
             </div>
 
             <div className="hidden md:block border border-border bg-card overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[1100px]">
                 <thead className="border-b border-border bg-secondary">
                   <tr className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
                     <th className="text-left p-3">Website</th>
                     <th className="text-left p-3">Category</th>
                     <th className="text-right p-3">Price</th>
                     <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Embed Code</th>
                     <th className="text-right p-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {listings.map((listing) => (
-                    <tr key={listing.id} className="border-b border-border last:border-b-0">
+                    <tr key={listing.id} className="border-b border-border last:border-b-0 align-top">
                       <td className="p-3"><Link to={`/listings/${listing.id}`} className="hover:text-primary">{listing.website_name}</Link></td>
                       <td className="p-3 text-muted-foreground">{listing.category}</td>
                       <td className="p-3 text-right font-mono">${Number(listing.monthly_price).toLocaleString()}</td>
                       <td className="p-3"><StatusBadge status={listing.status} /></td>
+                      <td className="p-3 min-w-[420px]"><EmbedCode listing={listing} /></td>
                       <td className="p-3 text-right space-x-2">
                         {listing.status !== 'sold' && (
                           <button onClick={() => toggleStatus(listing)} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${listing.id}`}>
@@ -203,7 +222,7 @@ export default function OwnerDashboard() {
           </h2>
           <p className="text-sm text-muted-foreground mt-3">
             {pendingApprovalOrders.length > 0
-              ? 'Review each submitted banner, destination URL, and advertiser note before approving. Denying automatically starts the Stripe refund when money was charged.'
+              ? 'Review each submitted banner, destination URL, and advertiser note before approving. Approved ads will display automatically wherever your embed code is installed.'
               : 'Paid ad requests will appear here first with banner previews and approve/deny buttons.'}
           </p>
         </div>
@@ -220,12 +239,8 @@ export default function OwnerDashboard() {
       <div className={`border p-5 sm:p-6 mb-8 ${stripeConnected ? 'border-acid bg-acid/5' : 'border-primary bg-primary/10'}`} data-testid="owner-stripe-connect-card">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold mb-2 ${stripeConnected ? 'text-acid' : 'text-primary'}`}>
-              {stripeConnected ? 'Stripe payouts connected' : 'Action required'}
-            </div>
-            <h2 className="font-display font-black uppercase text-2xl tracking-tight">
-              {stripeConnected ? 'You can receive seller payouts.' : 'Connect Stripe to receive payouts.'}
-            </h2>
+            <div className={`text-[10px] uppercase tracking-[0.3em] font-bold mb-2 ${stripeConnected ? 'text-acid' : 'text-primary'}`}>{stripeConnected ? 'Stripe payouts connected' : 'Action required'}</div>
+            <h2 className="font-display font-black uppercase text-2xl tracking-tight">{stripeConnected ? 'You can receive seller payouts.' : 'Connect Stripe to receive payouts.'}</h2>
             <p className="text-sm text-muted-foreground mt-3 max-w-2xl leading-relaxed">
               {stripeConnected
                 ? 'Your seller payout account is connected. New listing sales can be routed through Stripe Connect.'
@@ -249,9 +264,6 @@ export default function OwnerDashboard() {
           <MiniStat label="Failed" value={payoutFailedCount} />
           <MiniStat label="Total Approved" value={approvedPaidOrders.length} />
         </div>
-        <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
-          Paid means BadAdz created the Stripe transfer to the seller account. Skipped means no payout was needed, usually for a $0 test ad. Failed means Stripe did not complete the seller transfer and the order needs attention.
-        </p>
       </div>
 
       <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight mt-10 mb-4">Sales History</h2>
@@ -259,16 +271,16 @@ export default function OwnerDashboard() {
         <div className="border border-border p-8 sm:p-12 text-center text-sm text-muted-foreground" data-testid="owner-no-sales">No sales yet.</div>
       ) : (
         <div className="border border-border bg-card overflow-x-auto" data-testid="owner-sales-table">
-          <table className="w-full text-sm min-w-[980px]">
+          <table className="w-full text-sm min-w-[1100px]">
             <thead className="border-b border-border bg-secondary">
               <tr className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
                 <th className="text-left p-3">Date</th>
                 <th className="text-left p-3">Listing</th>
                 <th className="text-left p-3">Advertiser</th>
                 <th className="text-right p-3">Paid</th>
-                <th className="text-right p-3">Fee</th>
                 <th className="text-right p-3">You Earn</th>
-                <th className="text-left p-3">Payment</th>
+                <th className="text-right p-3">Views</th>
+                <th className="text-right p-3">Clicks</th>
                 <th className="text-left p-3">Approval</th>
                 <th className="text-left p-3">Payout</th>
                 <th className="text-right p-3">Actions</th>
@@ -281,13 +293,13 @@ export default function OwnerDashboard() {
                   <td className="p-3">{order.website_name}</td>
                   <td className="p-3 text-muted-foreground">{order.advertiser_name}<br/><span className="text-xs">{order.advertiser_email}</span></td>
                   <td className="p-3 text-right font-mono">${Number(order.price_paid || 0).toFixed(2)}</td>
-                  <td className="p-3 text-right font-mono text-muted-foreground">${Number(order.platform_fee || 0).toFixed(2)}</td>
                   <td className="p-3 text-right font-mono text-acid">${Number(order.seller_earnings || 0).toFixed(2)}</td>
-                  <td className="p-3"><StatusText value={order.payment_status} /></td>
+                  <td className="p-3 text-right font-mono">{Number(order.impression_count || 0).toLocaleString()}</td>
+                  <td className="p-3 text-right font-mono">{Number(order.click_count || 0).toLocaleString()}</td>
                   <td className="p-3"><StatusText value={order.approval_status || 'awaiting_payment'} /></td>
                   <td className="p-3"><PayoutStatus order={order} /></td>
                   <td className="p-3 text-right">
-                    {order.payment_status === 'paid' && order.approval_status === 'pending' ? (
+                    {order.payment_status === 'paid' && ['pending', 'awaiting_approval'].includes(order.approval_status) ? (
                       <div className="flex justify-end gap-2">
                         <button onClick={() => approveOrder(order)} disabled={Boolean(actionBusy)} className="border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">Approve</button>
                         <button onClick={() => denyOrder(order)} disabled={Boolean(actionBusy)} className="border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">Deny</button>
@@ -300,6 +312,20 @@ export default function OwnerDashboard() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function EmbedCode({ listing }) {
+  return (
+    <div className="border border-border bg-background p-3" data-testid={`embed-code-${listing.id}`}>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Paste once on your site</div>
+        <button onClick={() => copyEmbedCode(listing)} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary">
+          <Copy size={10}/> Copy
+        </button>
+      </div>
+      <code className="block text-[11px] leading-relaxed font-mono text-acid break-all">{getEmbedCode(listing)}</code>
     </div>
   );
 }
@@ -374,6 +400,7 @@ function ListingCard({ listing, toggleStatus }) {
         <MiniStat label="Price" value={`$${Number(listing.monthly_price || 0).toLocaleString()}`} />
         <MiniStat label="Status" value={listing.status} />
       </div>
+      <div className="mt-4"><EmbedCode listing={listing} /></div>
       <div className="mt-4 grid grid-cols-1 gap-2">
         {listing.status !== 'sold' && (
           <button onClick={() => toggleStatus(listing)} className="w-full inline-flex items-center justify-center gap-2 border border-border px-3 py-3 text-[10px] uppercase tracking-[0.25em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${listing.id}`}>
@@ -403,7 +430,7 @@ function PayoutStatus({ order }) {
 }
 
 function StatusText({ value }) {
-  const color = value === 'approved' || value === 'paid' ? 'text-acid' : value === 'denied' || value === 'refunded' ? 'text-primary' : value === 'pending' ? 'text-gold' : 'text-muted-foreground';
+  const color = value === 'approved' || value === 'paid' ? 'text-acid' : value === 'denied' || value === 'refunded' ? 'text-primary' : value === 'pending' || value === 'awaiting_approval' ? 'text-gold' : 'text-muted-foreground';
   return <span className={`text-[10px] uppercase tracking-[0.2em] font-bold ${color}`}>● {value}</span>;
 }
 
