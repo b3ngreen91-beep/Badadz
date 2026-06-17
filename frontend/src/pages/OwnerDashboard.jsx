@@ -147,6 +147,7 @@ export default function OwnerDashboard() {
   const clicks = approvedLaunchOrders.reduce((sum, o) => sum + Number(o.click_count || 0), 0);
   const activeCampaigns = approvedLaunchOrders.filter(isLiveOrder).length;
   const stripeConnected = Boolean(connectStatus?.onboarding_complete);
+  const hasCodeReadyListing = listings.some((listing) => canShowAdCode(listing, allApprovedOrders));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8" data-testid="owner-dashboard">
@@ -178,6 +179,8 @@ export default function OwnerDashboard() {
         <Stat label="CTR" value={ctrPercent(views, clicks)} />
         <Stat label="Active Listings" value={activeCount} />
       </div>
+
+      {hasCodeReadyListing && <InstallAdSlotNotice />}
 
       {hiddenTestCount > 0 && (
         <div className="border border-border bg-card p-4 mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -223,6 +226,23 @@ export default function OwnerDashboard() {
   );
 }
 
+function InstallAdSlotNotice() {
+  return (
+    <section className="border border-primary bg-primary/10 p-5 sm:p-6 mb-8" data-testid="install-ad-slot-notice">
+      <div className="text-[10px] uppercase tracking-[0.3em] text-primary font-bold mb-2">Important Owner Step</div>
+      <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight mb-3">Install your ad slot code.</h2>
+      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+        Ads cannot appear on your website until the BadAdz script is installed. Install it once, leave it in place, and approved campaigns will appear automatically in that slot.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-px bg-border border border-border">
+        {['Click Ad Code', 'Choose banner size', 'Copy the code', 'Paste on your website', 'Keep it installed'].map((step) => (
+          <div key={step} className="bg-background p-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{step}</div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ListingsTable({ listings, approvedOrders, openCodeListingId, setOpenCodeListingId, toggleStatus }) {
   if (!listings.length) return <div className="border border-border p-8 sm:p-10 text-center text-muted-foreground text-sm">No visible listings.</div>;
   return (
@@ -261,9 +281,12 @@ function ListingRows({ listing, approvedOrders, open, setOpenCodeListingId, togg
 function AdCodePanel({ listing }) {
   return (
     <div className="border border-acid bg-acid/5 p-4">
-      <div className="text-[10px] uppercase tracking-[0.25em] text-acid font-bold mb-2">Choose slot size</div>
-      <h3 className="font-display font-black uppercase text-xl tracking-tight mb-2">{listing.website_name}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-4">Choose the ad size you want on your website. Copy that code and paste it exactly where that size should appear. Keep this installed while the campaign is active.</p>
+      <div className="text-[10px] uppercase tracking-[0.25em] text-acid font-bold mb-2">Required Installation Step</div>
+      <h3 className="font-display font-black uppercase text-xl tracking-tight mb-2">Install code for {listing.website_name}</h3>
+      <div className="border border-primary bg-primary/10 p-3 mb-4">
+        <p className="text-sm text-foreground leading-relaxed font-bold">Ads will not display until this script is pasted onto your website.</p>
+        <p className="text-xs text-muted-foreground leading-relaxed mt-2">Choose the size you want, copy that code, paste it exactly where the banner should appear, and leave it installed while campaigns are active. Future approved campaigns will update automatically.</p>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">{AD_SIZES.map((size) => { const code = getEmbedCode(listing, size); return <div key={size} className="border border-border bg-black p-3"><div className="flex items-center justify-between gap-3 mb-2"><div className="font-mono text-sm text-acid">{size}</div><button onClick={() => copyText(code, `${size} ad code copied`)} className="inline-flex items-center gap-1 border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:bg-acid hover:text-black"><Copy size={10}/> Copy</button></div><code className="block text-[10px] leading-relaxed font-mono text-muted-foreground break-all">{code}</code></div>; })}</div>
     </div>
   );
