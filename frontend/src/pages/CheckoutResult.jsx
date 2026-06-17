@@ -46,42 +46,38 @@ export default function CheckoutResult({ kind }) {
           {loading
             ? 'Confirming your order...'
             : order
-              ? `Your campaign on ${order.website_name} is confirmed for ${campaignDays} days.`
+              ? `Your campaign on ${order.website_name} is confirmed for ${campaignDays} days once approved.`
               : 'Your order is being processed. Stripe webhook will confirm shortly.'}
         </p>
       </div>
 
       <div className="border border-border bg-card p-6 md:p-8 mb-8">
         <h2 className="font-display font-black uppercase text-2xl tracking-tight mb-4">
-          Next steps for your ad
+          What happens next
         </h2>
 
         {order?.owner_email && (
           <div className="border border-primary/40 bg-primary/10 p-4 mb-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">
-              Website owner contact
+              Website owner reviewing your ad
             </div>
             <div className="text-primary font-mono break-all">
               {order.owner_email}
             </div>
-            {order.owner_name && (
-              <div className="text-xs text-muted-foreground mt-1">
-                {order.owner_name}
-              </div>
-            )}
+            {order.owner_name && <div className="text-xs text-muted-foreground mt-1">{order.owner_name}</div>}
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-4 text-sm text-muted-foreground">
-          <Step text="Contact the website owner and let them know you purchased the placement." />
-          <Step text="Send your banner image or ad creative to the website owner." />
-          <Step text="Send the destination URL where people should go when they click your ad." />
-          <Step text="Keep a record of your 30-day campaign dates and confirm when the ad goes live." />
+          <Step text="Your payment and uploaded ad creative were received by BadAdz." />
+          <Step text="The website owner will review your banner previews and destination URL." />
+          <Step text="If approved, your campaign automatically goes live wherever the owner installed their BadAdz ad slot code." />
+          <Step text="Track your status, views, clicks, and CTR from My Campaigns." />
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed mt-6 border-t border-border pt-5">
-          BadAdz handles the marketplace, payment, campaign tracking, and seller notification.
-          The website owner is responsible for placing your banner ad on their website for the full 30-day campaign.
+          You do not need to email banner files separately unless the website owner asks for something specific.
+          BadAdz already collected your creative, destination URL, payment, and campaign details.
         </p>
       </div>
 
@@ -98,9 +94,5 @@ export default function CheckoutResult({ kind }) {
 }
 
 function Step({ text }) {
-  return (
-    <div className="border border-border bg-black p-4 leading-relaxed">
-      {text}
-    </div>
-  );
+  return <div className="border border-border bg-black p-4 leading-relaxed">{text}</div>;
 }
