@@ -1,9 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../lib/api';
+import api, { API_BASE } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
-import { Plus, Edit3, Pause, Play, CreditCard } from 'lucide-react';
+import { Plus, Edit3, Pause, Play, CreditCard, Copy } from 'lucide-react';
+
+function getBackendBase() {
+  return API_BASE.replace(/\/api\/?$/, '') || window.location.origin;
+}
+
+function getEmbedCode(listing) {
+  const slotId = listing.ad_slot_id || listing.id;
+  return `<script async src="${getBackendBase()}/ads/${slotId}.js"></script>`;
+}
+
+async function copyEmbedCode(listing) {
+  try {
+    await navigator.clipboard.writeText(getEmbedCode(listing));
+    toast.success('Ad code copied');
+  } catch (_err) {
+    toast.error('Could not copy ad code');
+  }
+}
 
 export default function OwnerDashboard() {
   const { user } = useAuth();
@@ -88,13 +106,14 @@ export default function OwnerDashboard() {
   };
 
   const approvedPaidOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && o.approval_status === 'approved');
-  const pendingApprovalOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && o.approval_status === 'pending');
+  const pendingApprovalOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && ['pending', 'awaiting_approval'].includes(o.approval_status));
   const activeCount = listings.filter((l) => l.status === 'active').length;
-  const pausedCount = listings.filter((l) => l.status === 'paused').length;
   const totalListings = listings.length;
   const totalSales = approvedPaidOrders.reduce((sum, o) => sum + Number(o.price_paid || 0), 0);
   const totalFees = approvedPaidOrders.reduce((sum, o) => sum + Number(o.platform_fee || 0), 0);
   const totalEarnings = approvedPaidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
+  const totalImpressions = approvedPaidOrders.reduce((sum, o) => sum + Number(o.impression_count || 0), 0);
+  const totalClicks = approvedPaidOrders.reduce((sum, o) => sum + Number(o.click_count || 0), 0);
   const activeCampaigns = approvedPaidOrders.filter((o) => !o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date()).length;
   const completedCampaigns = approvedPaidOrders.filter((o) => o.campaign_ends_at && new Date(o.campaign_ends_at) <= new Date()).length;
   const payoutPaidCount = approvedPaidOrders.filter((o) => o.seller_payout_status === 'paid').length;
@@ -130,8 +149,8 @@ export default function OwnerDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-7" data-testid="owner-listing-stats">
         <Stat label="Active Listings" value={activeCount} />
         <Stat label="Total Listings" value={totalListings} />
-        <Stat label="Active Campaigns" value={activeCampaigns} highlight />
-        <Stat label="Completed" value={completedCampaigns} />
+        <Stat label="Views" value={totalImpressions.toLocaleString()} highlight />
+        <Stat label="Clicks" value={totalClicks.toLocaleString()} />
       </div>
 
       <section className="mb-8">
@@ -177,6 +196,9 @@ export default function OwnerDashboard() {
                       <td className="p-3 text-right font-mono">${Number(listing.monthly_price).toLocaleString()}</td>
                       <td className="p-3"><StatusBadge status={listing.status} /></td>
                       <td className="p-3 text-right space-x-2">
+                        <button onClick={() => copyEmbedCode(listing)} className="inline-flex items-center gap-1 border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:bg-acid hover:text-black" data-testid={`copy-ad-code-${listing.id}`}>
+                          <Copy size={10}/> Copy Ad Code
+                        </button>
                         {listing.status !== 'sold' && (
                           <button onClick={() => toggleStatus(listing)} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${listing.id}`}>
                             {listing.status === 'active' ? <><Pause size={10}/> Pause</> : <><Play size={10}/> Activate</>}
@@ -191,6 +213,10 @@ export default function OwnerDashboard() {
                 </tbody>
               </table>
             </div>
+
+            <div className="hidden md:grid md:grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+              {listings.map((listing) => <EmbedCode key={listing.id} listing={listing} />)}
+            </div>
           </div>
         )}
       </section>
@@ -203,7 +229,7 @@ export default function OwnerDashboard() {
           </h2>
           <p className="text-sm text-muted-foreground mt-3">
             {pendingApprovalOrders.length > 0
-              ? 'Review each submitted banner, destination URL, and advertiser note before approving. Denying automatically starts the Stripe refund when money was charged.'
+              ? 'Review each submitted banner, destination URL, and advertiser note before approving. Approved ads automatically appear anywhere your ad code is installed.'
               : 'Paid ad requests will appear here first with banner previews and approve/deny buttons.'}
           </p>
         </div>
@@ -259,7 +285,7 @@ export default function OwnerDashboard() {
         <div className="border border-border p-8 sm:p-12 text-center text-sm text-muted-foreground" data-testid="owner-no-sales">No sales yet.</div>
       ) : (
         <div className="border border-border bg-card overflow-x-auto" data-testid="owner-sales-table">
-          <table className="w-full text-sm min-w-[980px]">
+          <table className="w-full text-sm min-w-[1100px]">
             <thead className="border-b border-border bg-secondary">
               <tr className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
                 <th className="text-left p-3">Date</th>
@@ -268,6 +294,8 @@ export default function OwnerDashboard() {
                 <th className="text-right p-3">Paid</th>
                 <th className="text-right p-3">Fee</th>
                 <th className="text-right p-3">You Earn</th>
+                <th className="text-right p-3">Views</th>
+                <th className="text-right p-3">Clicks</th>
                 <th className="text-left p-3">Payment</th>
                 <th className="text-left p-3">Approval</th>
                 <th className="text-left p-3">Payout</th>
@@ -283,11 +311,13 @@ export default function OwnerDashboard() {
                   <td className="p-3 text-right font-mono">${Number(order.price_paid || 0).toFixed(2)}</td>
                   <td className="p-3 text-right font-mono text-muted-foreground">${Number(order.platform_fee || 0).toFixed(2)}</td>
                   <td className="p-3 text-right font-mono text-acid">${Number(order.seller_earnings || 0).toFixed(2)}</td>
+                  <td className="p-3 text-right font-mono">{Number(order.impression_count || 0).toLocaleString()}</td>
+                  <td className="p-3 text-right font-mono">{Number(order.click_count || 0).toLocaleString()}</td>
                   <td className="p-3"><StatusText value={order.payment_status} /></td>
                   <td className="p-3"><StatusText value={order.approval_status || 'awaiting_payment'} /></td>
                   <td className="p-3"><PayoutStatus order={order} /></td>
                   <td className="p-3 text-right">
-                    {order.payment_status === 'paid' && order.approval_status === 'pending' ? (
+                    {order.payment_status === 'paid' && ['pending', 'awaiting_approval'].includes(order.approval_status) ? (
                       <div className="flex justify-end gap-2">
                         <button onClick={() => approveOrder(order)} disabled={Boolean(actionBusy)} className="border border-acid text-acid px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">Approve</button>
                         <button onClick={() => denyOrder(order)} disabled={Boolean(actionBusy)} className="border border-primary text-primary px-2 py-1 text-[10px] uppercase tracking-[0.2em] disabled:opacity-60">Deny</button>
@@ -300,6 +330,32 @@ export default function OwnerDashboard() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function EmbedCode({ listing }) {
+  return (
+    <div className="border border-acid bg-acid/5 p-4" data-testid={`embed-code-${listing.id}`}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-acid font-bold mb-2">Install this ad slot</div>
+          <h3 className="font-display font-black uppercase text-lg tracking-tight">{listing.website_name}</h3>
+        </div>
+        <button onClick={() => copyEmbedCode(listing)} className="inline-flex items-center justify-center gap-2 border border-acid text-acid px-3 py-2 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-acid hover:text-black" data-testid={`copy-ad-code-card-${listing.id}`}>
+          <Copy size={12}/> Copy Ad Code
+        </button>
+      </div>
+
+      <p className="text-sm text-foreground leading-relaxed mb-3">
+        Copy this code and paste it into your website exactly where you want this ad to appear.
+      </p>
+      <ul className="text-xs text-muted-foreground leading-relaxed space-y-1 mb-3 list-disc pl-5">
+        <li>You only need to install it one time.</li>
+        <li>When you approve a buyer's banner, BadAdz automatically shows it in this spot.</li>
+        <li>If no campaign is active, this spot shows “Ad space available.”</li>
+      </ul>
+      <code className="block bg-black border border-border p-3 text-[11px] leading-relaxed font-mono text-acid break-all">{getEmbedCode(listing)}</code>
     </div>
   );
 }
@@ -374,6 +430,7 @@ function ListingCard({ listing, toggleStatus }) {
         <MiniStat label="Price" value={`$${Number(listing.monthly_price || 0).toLocaleString()}`} />
         <MiniStat label="Status" value={listing.status} />
       </div>
+      <div className="mt-4"><EmbedCode listing={listing} /></div>
       <div className="mt-4 grid grid-cols-1 gap-2">
         {listing.status !== 'sold' && (
           <button onClick={() => toggleStatus(listing)} className="w-full inline-flex items-center justify-center gap-2 border border-border px-3 py-3 text-[10px] uppercase tracking-[0.25em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${listing.id}`}>
