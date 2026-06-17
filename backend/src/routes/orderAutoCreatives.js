@@ -67,8 +67,6 @@ async function uploadCreative(file, orderId, bannerSize, autoResize) {
         folder: `badadz/campaigns/${orderId}`,
         resource_type: 'image',
         public_id: `${autoResize ? 'auto-fit' : 'manual'}-${bannerSize}-${Date.now()}`,
-        // Auto-generated sizes should preserve the whole design instead of cutting off text/logos.
-        // Exact uploaded sizes are stored untouched. Auto sizes are fitted onto a black canvas.
         ...(autoResize ? {
           transformation: [{
             width: dims.width,
@@ -87,7 +85,8 @@ async function uploadCreative(file, orderId, bannerSize, autoResize) {
 
     stream.end(file.buffer);
   });
-}\n
+}
+
 router.post(
   '/create-checkout-session',
   authRequired,
