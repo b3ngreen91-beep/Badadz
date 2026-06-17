@@ -12,6 +12,7 @@ const ordersRouter = require('./routes/orders');
 const webhookRouter = require('./routes/webhook');
 const adminRouter = require('./routes/admin');
 const connectRouter = require('./routes/connect');
+const adsRouter = require('./routes/ads');
 const { expireEndedCampaigns } = require('./services/expireCampaigns');
 
 const app = express();
@@ -65,6 +66,8 @@ app.get('/api', (_req, res) => res.json({
     'GET  /api/orders/my',
     'GET  /api/orders/sales',
     'POST /api/orders/webhook',
+    'GET  /ads/:listingId.js',
+    'GET  /ads/click/:orderId',
     'GET  /api/admin/stats',
   ],
 }));
@@ -74,6 +77,8 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'badadz-
 app.use('/api/auth', authRouter);
 app.use('/api/connect', connectRouter);
 app.use('/api/listings', listingsRouter);
+// Public ad serving routes are intentionally outside /api so publishers can paste clean script tags.
+app.use('/ads', adsRouter);
 // Mount payout-first order routes before the legacy orders router.
 // This lets approval require a real seller transfer and lets /orders/sales retry unpaid seller transfers.
 app.use('/api/orders', orderPayoutsRouter);
