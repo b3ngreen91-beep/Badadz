@@ -35,6 +35,10 @@ function getStripe() {
   return require('stripe')(key);
 }
 
+function cents(amount) {
+  return Math.round(Number(amount || 0) * 100);
+}
+
 async function uploadToCloudinary(file, orderId, bannerSize) {
   if (!process.env.CLOUDINARY_URL) throw new Error('Creative uploads are not configured');
 
@@ -64,7 +68,11 @@ async function ensureOrderApprovalColumns() {
     ADD COLUMN IF NOT EXISTS denied_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS denial_reason TEXT,
     ADD COLUMN IF NOT EXISTS destination_url TEXT,
-    ADD COLUMN IF NOT EXISTS advertiser_notes TEXT
+    ADD COLUMN IF NOT EXISTS advertiser_notes TEXT,
+    ADD COLUMN IF NOT EXISTS seller_payout_status TEXT NOT NULL DEFAULT 'not_started',
+    ADD COLUMN IF NOT EXISTS stripe_transfer_id TEXT,
+    ADD COLUMN IF NOT EXISTS seller_payout_error TEXT,
+    ADD COLUMN IF NOT EXISTS seller_paid_at TIMESTAMPTZ
   `);
 
   await db.query(`
@@ -113,6 +121,8 @@ async function getOwnerOrder(orderId, ownerId) {
        l.user_id AS seller_id,
        seller.name AS seller_name,
        seller.email AS seller_email,
+       seller.stripe_connect_account_id AS seller_stripe_connect_account_id,
+       seller.stripe_connect_onboarding_complete AS seller_stripe_connect_onboarding_complete,
        advertiser.name AS advertiser_name,
        advertiser.email AS advertiser_email,
        ${creativesJsonSelect()}
@@ -149,6 +159,73 @@ async function getPaymentIntentForOrder(order, stripe) {
   );
 
   return paymentIntentId;
+}
+
+async function getLatestChargeForOrder(order, stripe) {
+  const paymentIntentId = await getPaymentIntentForOrder(order, stripe);
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+    expand: ['latest_charge'],
+  });
+
+  const chargeId = typeof paymentIntent.latest_charge === 'string'
+    ? paymentIntent.latest_charge
+    : paymentIntent.latest_charge?.id;
+
+  return chargeId || null;
+}
+
+async function transferSellerEarnings(order) {
+  const sellerEarningsCents = cents(order.seller_earnings);
+
+  if (sellerEarningsCents <= 0) {
+    await db.query(
+      `UPDATE orders
+       SET seller_payout_status = 'skipped', seller_payout_error = NULL
+       WHERE id = $1`,
+      [order.id]
+    );
+    return { skipped: true, reason: 'No seller payout needed for $0 earnings' };
+  }
+
+  if (order.stripe_transfer_id) {
+    return { skipped: true, reason: 'Seller payout already created', transfer_id: order.stripe_transfer_id };
+  }
+
+  if (!order.seller_stripe_connect_account_id || !order.seller_stripe_connect_onboarding_complete) {
+    throw new Error('Seller Stripe Connect account is not ready for payouts');
+  }
+
+  const stripe = getStripe();
+  const chargeId = await getLatestChargeForOrder(order, stripe);
+
+  const transfer = await stripe.transfers.create({
+    amount: sellerEarningsCents,
+    currency: 'usd',
+    destination: order.seller_stripe_connect_account_id,
+    transfer_group: `ORDER_${order.id}`,
+    ...(chargeId ? { source_transaction: chargeId } : {}),
+    metadata: {
+      order_id: order.id,
+      listing_id: order.listing_id,
+      seller_id: order.seller_id,
+      platform_fee: String(order.platform_fee || 0),
+      seller_earnings: String(order.seller_earnings || 0),
+    },
+  }, {
+    idempotencyKey: `badadz_seller_payout_${order.id}`,
+  });
+
+  await db.query(
+    `UPDATE orders
+     SET seller_payout_status = 'paid',
+         stripe_transfer_id = $1,
+         seller_paid_at = NOW(),
+         seller_payout_error = NULL
+     WHERE id = $2`,
+    [transfer.id, order.id]
+  );
+
+  return { transfer_id: transfer.id };
 }
 
 async function markOrderDenied(order, reason, paymentStatus = 'refunded', paymentIntentId = null) {
@@ -263,13 +340,27 @@ router.post(
   }
 );
 
-// Owner: approve paid ad request
+// Owner: approve paid ad request, start campaign, and transfer seller earnings.
 router.post('/:orderId/approve', authRequired, requireRole('owner'), async (req, res) => {
   try {
     const order = await getOwnerOrder(req.params.orderId, req.user.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (order.payment_status !== 'paid') return res.status(400).json({ error: 'Order must be paid before approval' });
     if (order.approval_status === 'denied') return res.status(400).json({ error: 'Denied orders cannot be approved' });
+    if (order.approval_status === 'approved') return res.status(400).json({ error: 'Order already approved' });
+
+    let payoutResult;
+    try {
+      payoutResult = await transferSellerEarnings(order);
+    } catch (payoutErr) {
+      await db.query(
+        `UPDATE orders
+         SET seller_payout_status = 'failed', seller_payout_error = $1
+         WHERE id = $2`,
+        [payoutErr.message || 'Seller payout failed', order.id]
+      );
+      throw payoutErr;
+    }
 
     const now = new Date();
     const end = new Date(now);
@@ -291,10 +382,10 @@ router.post('/:orderId/approve', authRequired, requireRole('owner'), async (req,
     const approvedOrder = { ...order, ...rows[0], campaign_starts_at: now, campaign_ends_at: end };
     await sendCampaignPurchaseEmails(approvedOrder);
 
-    res.json({ order: rows[0] });
+    res.json({ order: rows[0], payout: payoutResult });
   } catch (err) {
     console.error('approve order error', err);
-    res.status(500).json({ error: 'Failed to approve order' });
+    res.status(500).json({ error: err.message || 'Failed to approve order and transfer seller payout' });
   }
 });
 
