@@ -9,6 +9,7 @@ const authRouter = require('./routes/auth');
 const listingsRouter = require('./routes/listings');
 const orderPayoutsRouter = require('./routes/orderPayouts');
 const ordersRouter = require('./routes/orders');
+const orderAutoCreativesRouter = require('./routes/orderAutoCreatives');
 const webhookRouter = require('./routes/webhook');
 const adminRouter = require('./routes/admin');
 const connectRouter = require('./routes/connect');
@@ -79,6 +80,8 @@ app.use('/api/connect', connectRouter);
 app.use('/api/listings', listingsRouter);
 // Public ad serving routes are intentionally outside /api so publishers can paste clean script tags.
 app.use('/ads', adsRouter);
+// Auto creative checkout route is mounted before legacy order routes so one-upload resizing works.
+app.use('/api/orders', orderAutoCreativesRouter);
 // Mount payout-first order routes before the legacy orders router.
 // This lets approval require a real seller transfer and lets /orders/sales retry unpaid seller transfers.
 app.use('/api/orders', orderPayoutsRouter);
