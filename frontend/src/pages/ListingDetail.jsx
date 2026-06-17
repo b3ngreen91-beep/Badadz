@@ -6,6 +6,32 @@ import { toast } from 'sonner';
 import { ExternalLink, ArrowLeft } from 'lucide-react';
 
 const CREATIVE_SIZES = ['728x90', '300x250', '160x600', '320x50', '970x250'];
+const CREATIVE_DIMENSIONS = {
+  '728x90': { width: 728, height: 90 },
+  '300x250': { width: 300, height: 250 },
+  '160x600': { width: 160, height: 600 },
+  '320x50': { width: 320, height: 50 },
+  '970x250': { width: 970, height: 250 },
+};
+
+function readImageDimensions(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight, objectUrl });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Could not read image dimensions'));
+    };
+
+    img.src = objectUrl;
+  });
+}
 
 export default function ListingDetail() {
   const { id } = useParams();
@@ -19,6 +45,8 @@ export default function ListingDetail() {
   const [advertiserNotes, setAdvertiserNotes] = useState('');
   const [creativeFiles, setCreativeFiles] = useState({});
   const [creativePreviews, setCreativePreviews] = useState({});
+  const [creativeErrors, setCreativeErrors] = useState({});
+  const [creativeMeta, setCreativeMeta] = useState({});
 
   useEffect(() => {
     api.get(`/listings/${id}`)
@@ -27,17 +55,54 @@ export default function ListingDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const onCreativeChange = (size) => (e) => {
+  const onCreativeChange = (size) => async (e) => {
     const file = e.target.files?.[0];
-    setCreativeFiles((prev) => ({ ...prev, [size]: file || null }));
-    setCreativePreviews((prev) => ({ ...prev, [size]: file ? URL.createObjectURL(file) : '' }));
+    const expected = CREATIVE_DIMENSIONS[size];
+
+    if (!file) {
+      setCreativeFiles((prev) => ({ ...prev, [size]: null }));
+      setCreativePreviews((prev) => ({ ...prev, [size]: '' }));
+      setCreativeErrors((prev) => ({ ...prev, [size]: '' }));
+      setCreativeMeta((prev) => ({ ...prev, [size]: null }));
+      return;
+    }
+
+    try {
+      const { width, height } = await readImageDimensions(file);
+      const isCorrectSize = width === expected.width && height === expected.height;
+
+      if (!isCorrectSize) {
+        e.target.value = '';
+        setCreativeFiles((prev) => ({ ...prev, [size]: null }));
+        setCreativePreviews((prev) => ({ ...prev, [size]: '' }));
+        setCreativeMeta((prev) => ({ ...prev, [size]: { width, height } }));
+        setCreativeErrors((prev) => ({
+          ...prev,
+          [size]: `Wrong size. ${size} requires ${expected.width}×${expected.height}px. Your image is ${width}×${height}px.`,
+        }));
+        toast.error(`${size} image must be exactly ${expected.width}×${expected.height}px`);
+        return;
+      }
+
+      setCreativeFiles((prev) => ({ ...prev, [size]: file }));
+      setCreativePreviews((prev) => ({ ...prev, [size]: URL.createObjectURL(file) }));
+      setCreativeMeta((prev) => ({ ...prev, [size]: { width, height } }));
+      setCreativeErrors((prev) => ({ ...prev, [size]: '' }));
+    } catch (err) {
+      e.target.value = '';
+      setCreativeFiles((prev) => ({ ...prev, [size]: null }));
+      setCreativePreviews((prev) => ({ ...prev, [size]: '' }));
+      setCreativeMeta((prev) => ({ ...prev, [size]: null }));
+      setCreativeErrors((prev) => ({ ...prev, [size]: 'Could not validate this image. Try another file.' }));
+    }
   };
 
   const buy = async () => {
     if (!user) { navigate('/login', { state: { from: `/listings/${id}` } }); return; }
     if (user.role !== 'advertiser') { toast.error('Only advertisers can buy. Create an advertiser account.'); return; }
     if (!destinationUrl.trim()) { toast.error('Enter the destination URL for your ad.'); return; }
-    if (!Object.values(creativeFiles).some(Boolean)) { toast.error('Upload at least one banner creative.'); return; }
+    if (Object.values(creativeErrors).some(Boolean)) { toast.error('Fix banner size errors before paying.'); return; }
+    if (!Object.values(creativeFiles).some(Boolean)) { toast.error('Upload at least one correctly sized banner creative.'); return; }
 
     setBuying(true);
     try {
@@ -158,19 +223,27 @@ export default function ListingDetail() {
 
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Upload banner creatives *</div>
-                  <p className="text-[11px] text-muted-foreground mb-3">Upload one or more sizes. The website owner will review these before approving your ad.</p>
+                  <p className="text-[11px] text-muted-foreground mb-3">Upload one or more exact banner sizes. Screenshots and wrong-sized images are blocked.</p>
                   <div className="space-y-3">
-                    {CREATIVE_SIZES.map((size) => (
-                      <div key={size} className="border border-border p-3">
-                        <label className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground block mb-2">{size}</label>
-                        <input type="file" accept="image/*" onChange={onCreativeChange(size)} className="w-full text-xs" data-testid={`creative-${size}-input`} />
-                        {creativePreviews[size] && (
-                          <div className="mt-3 border border-border bg-black p-2 overflow-hidden">
-                            <img src={creativePreviews[size]} alt={`${size} preview`} className="max-w-full h-auto" />
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    {CREATIVE_SIZES.map((size) => {
+                      const expected = CREATIVE_DIMENSIONS[size];
+                      const meta = creativeMeta[size];
+                      return (
+                        <div key={size} className={`border p-3 ${creativeErrors[size] ? 'border-primary' : creativeFiles[size] ? 'border-acid' : 'border-border'}`}>
+                          <label className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground block mb-2">
+                            {size} · must be {expected.width}×{expected.height}px
+                          </label>
+                          <input type="file" accept="image/*" onChange={onCreativeChange(size)} className="w-full text-xs" data-testid={`creative-${size}-input`} />
+                          {creativeErrors[size] && <div className="mt-2 text-[11px] text-primary leading-relaxed">{creativeErrors[size]}</div>}
+                          {!creativeErrors[size] && meta && <div className="mt-2 text-[11px] text-acid">Valid: {meta.width}×{meta.height}px</div>}
+                          {creativePreviews[size] && (
+                            <div className="mt-3 border border-border bg-black p-2 overflow-hidden">
+                              <img src={creativePreviews[size]} alt={`${size} preview`} className="max-w-full h-auto" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
