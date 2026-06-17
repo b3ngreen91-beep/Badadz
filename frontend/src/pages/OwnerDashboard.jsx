@@ -90,8 +90,8 @@ export default function OwnerDashboard() {
   const approvedPaidOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && o.approval_status === 'approved');
   const pendingApprovalOrders = salesData.orders.filter((o) => o.payment_status === 'paid' && o.approval_status === 'pending');
   const activeCount = listings.filter((l) => l.status === 'active').length;
-  const soldCount = listings.filter((l) => l.status === 'sold').length;
   const pausedCount = listings.filter((l) => l.status === 'paused').length;
+  const totalListings = listings.length;
   const totalSales = approvedPaidOrders.reduce((sum, o) => sum + Number(o.price_paid || 0), 0);
   const totalFees = approvedPaidOrders.reduce((sum, o) => sum + Number(o.platform_fee || 0), 0);
   const totalEarnings = approvedPaidOrders.reduce((sum, o) => sum + Number(o.seller_earnings || 0), 0);
@@ -103,10 +103,10 @@ export default function OwnerDashboard() {
   const stripeConnected = Boolean(connectStatus?.onboarding_complete);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12" data-testid="owner-dashboard">
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8" data-testid="owner-dashboard">
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.4em] text-primary mb-2">[ Owner / Dashboard ]</div>
+          <div className="text-[10px] uppercase tracking-[0.35em] text-primary mb-2">Owner Dashboard</div>
           <h1 className="font-display font-black uppercase text-3xl sm:text-4xl tracking-tight">Hey, {user?.name}.</h1>
         </div>
         {stripeConnected ? (
@@ -120,7 +120,82 @@ export default function OwnerDashboard() {
         )}
       </div>
 
-      <section className="mb-10" data-testid="owner-ad-requests-section">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-5" data-testid="owner-revenue-stats">
+        <Stat label="Your Earnings" value={`$${totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} highlight />
+        <Stat label="Needs Approval" value={pendingApprovalOrders.length} />
+        <Stat label="Approved Sales" value={`$${totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+        <Stat label="Platform Fees" value={`$${totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-7" data-testid="owner-listing-stats">
+        <Stat label="Active Listings" value={activeCount} />
+        <Stat label="Total Listings" value={totalListings} />
+        <Stat label="Active Campaigns" value={activeCampaigns} highlight />
+        <Stat label="Completed" value={completedCampaigns} />
+      </div>
+
+      <section className="mb-8">
+        <div className="flex items-end justify-between gap-3 mb-4">
+          <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight">My Listings</h2>
+          {stripeConnected && (
+            <Link to="/listings/new" className="text-primary text-[10px] uppercase tracking-[0.25em] font-bold">Add Listing →</Link>
+          )}
+        </div>
+        {loading ? (
+          <div className="text-muted-foreground text-xs uppercase tracking-[0.3em] py-8">Loading...</div>
+        ) : listings.length === 0 ? (
+          <div className="border border-border p-8 sm:p-10 text-center">
+            <p className="text-muted-foreground text-sm">No listings yet.</p>
+            {stripeConnected ? (
+              <Link to="/listings/new" className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em]">Create your first listing →</Link>
+            ) : (
+              <button onClick={startStripeConnect} disabled={connecting} className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em] disabled:opacity-60">Connect Stripe before listing →</button>
+            )}
+          </div>
+        ) : (
+          <div data-testid="owner-listings-table">
+            <div className="md:hidden space-y-4">
+              {listings.map((listing) => <ListingCard key={listing.id} listing={listing} toggleStatus={toggleStatus} />)}
+            </div>
+
+            <div className="hidden md:block border border-border bg-card overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border bg-secondary">
+                  <tr className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                    <th className="text-left p-3">Website</th>
+                    <th className="text-left p-3">Category</th>
+                    <th className="text-right p-3">Price</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-right p-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listings.map((listing) => (
+                    <tr key={listing.id} className="border-b border-border last:border-b-0">
+                      <td className="p-3"><Link to={`/listings/${listing.id}`} className="hover:text-primary">{listing.website_name}</Link></td>
+                      <td className="p-3 text-muted-foreground">{listing.category}</td>
+                      <td className="p-3 text-right font-mono">${Number(listing.monthly_price).toLocaleString()}</td>
+                      <td className="p-3"><StatusBadge status={listing.status} /></td>
+                      <td className="p-3 text-right space-x-2">
+                        {listing.status !== 'sold' && (
+                          <button onClick={() => toggleStatus(listing)} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${listing.id}`}>
+                            {listing.status === 'active' ? <><Pause size={10}/> Pause</> : <><Play size={10}/> Activate</>}
+                          </button>
+                        )}
+                        <Link to={`/listings/${listing.id}/edit`} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`edit-${listing.id}`}>
+                          <Edit3 size={10}/> Edit
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="mb-8" data-testid="owner-ad-requests-section">
         <div className={`border p-5 sm:p-6 mb-4 ${pendingApprovalOrders.length > 0 ? 'border-gold bg-gold/10' : 'border-border bg-card'}`}>
           <div className={`text-[10px] uppercase tracking-[0.3em] font-bold mb-2 ${pendingApprovalOrders.length > 0 ? 'text-gold' : 'text-muted-foreground'}`}>Ad requests</div>
           <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight">
@@ -165,22 +240,7 @@ export default function OwnerDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-8" data-testid="owner-revenue-stats">
-        <Stat label="Approved Sales" value={`$${totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
-        <Stat label="Platform Fees" value={`$${totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
-        <Stat label="Your Earnings" value={`$${totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} highlight />
-        <Stat label="Needs Approval" value={pendingApprovalOrders.length} />
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-border border border-border mb-8" data-testid="owner-listing-stats">
-        <Stat label="Active Listings" value={activeCount} />
-        <Stat label="Sold Listings" value={soldCount} />
-        <Stat label="Paused Listings" value={pausedCount} />
-        <Stat label="Active Campaigns" value={activeCampaigns} highlight />
-        <Stat label="Completed" value={completedCampaigns} />
-      </div>
-
-      <div className="border border-border bg-card p-5 sm:p-6 mb-12" data-testid="owner-payout-status-card">
+      <div className="border border-border bg-card p-5 sm:p-6 mb-8" data-testid="owner-payout-status-card">
         <div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-2">Seller payout status</div>
         <h2 className="font-display font-black uppercase text-2xl tracking-tight mb-4">Approved campaign payouts</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border">
@@ -194,61 +254,7 @@ export default function OwnerDashboard() {
         </p>
       </div>
 
-      <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight mb-4">My Listings</h2>
-      {loading ? (
-        <div className="text-muted-foreground text-xs uppercase tracking-[0.3em] py-12">Loading...</div>
-      ) : listings.length === 0 ? (
-        <div className="border border-border p-12 text-center">
-          <p className="text-muted-foreground text-sm">No listings yet.</p>
-          {stripeConnected ? (
-            <Link to="/listings/new" className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em]">Create your first listing →</Link>
-          ) : (
-            <button onClick={startStripeConnect} disabled={connecting} className="inline-block mt-4 text-primary text-xs uppercase tracking-[0.3em] disabled:opacity-60">Connect Stripe before listing →</button>
-          )}
-        </div>
-      ) : (
-        <div data-testid="owner-listings-table">
-          <div className="md:hidden space-y-4">
-            {listings.map((listing) => <ListingCard key={listing.id} listing={listing} toggleStatus={toggleStatus} />)}
-          </div>
-
-          <div className="hidden md:block border border-border bg-card overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-secondary">
-                <tr className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-                  <th className="text-left p-3">Website</th>
-                  <th className="text-left p-3">Category</th>
-                  <th className="text-right p-3">Price</th>
-                  <th className="text-left p-3">Status</th>
-                  <th className="text-right p-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {listings.map((listing) => (
-                  <tr key={listing.id} className="border-b border-border last:border-b-0">
-                    <td className="p-3"><Link to={`/listings/${listing.id}`} className="hover:text-primary">{listing.website_name}</Link></td>
-                    <td className="p-3 text-muted-foreground">{listing.category}</td>
-                    <td className="p-3 text-right font-mono">${Number(listing.monthly_price).toLocaleString()}</td>
-                    <td className="p-3"><StatusBadge status={listing.status} /></td>
-                    <td className="p-3 text-right space-x-2">
-                      {listing.status !== 'sold' && (
-                        <button onClick={() => toggleStatus(listing)} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`toggle-status-${listing.id}`}>
-                          {listing.status === 'active' ? <><Pause size={10}/> Pause</> : <><Play size={10}/> Activate</>}
-                        </button>
-                      )}
-                      <Link to={`/listings/${listing.id}/edit`} className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] uppercase tracking-[0.2em] hover:border-primary hover:text-primary" data-testid={`edit-${listing.id}`}>
-                        <Edit3 size={10}/> Edit
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight mt-12 mb-4">Sales History</h2>
+      <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight mt-10 mb-4">Sales History</h2>
       {salesData.orders.length === 0 ? (
         <div className="border border-border p-8 sm:p-12 text-center text-sm text-muted-foreground" data-testid="owner-no-sales">No sales yet.</div>
       ) : (
