@@ -4,6 +4,59 @@ import api from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { ExternalLink } from 'lucide-react';
 
+function getCampaignStatus(order) {
+  const payment = order.payment_status;
+  const approval = order.approval_status;
+  const now = new Date();
+  const end = order.campaign_ends_at ? new Date(order.campaign_ends_at) : null;
+
+  if (payment === 'refunded' || approval === 'denied') {
+    return {
+      label: 'Refunded / Denied',
+      tone: 'text-primary border-primary bg-primary/10',
+      help: 'The website owner denied this ad request and the payment was refunded or marked for refund.',
+    };
+  }
+
+  if (payment === 'pending' || approval === 'awaiting_payment') {
+    return {
+      label: 'Awaiting Payment',
+      tone: 'text-gold border-gold bg-gold/10',
+      help: 'Checkout has not been completed yet.',
+    };
+  }
+
+  if (payment === 'paid' && approval === 'pending') {
+    return {
+      label: 'Pending Owner Review',
+      tone: 'text-gold border-gold bg-gold/10',
+      help: 'Your payment went through. The website owner is reviewing your submitted ad creative.',
+    };
+  }
+
+  if (payment === 'paid' && approval === 'approved' && end && end <= now) {
+    return {
+      label: 'Completed',
+      tone: 'text-muted-foreground border-border bg-background',
+      help: 'This campaign period has ended.',
+    };
+  }
+
+  if (payment === 'paid' && approval === 'approved') {
+    return {
+      label: 'Approved / Live',
+      tone: 'text-acid border-acid bg-acid/10',
+      help: 'The website owner approved this ad. Your campaign is active or ready to run.',
+    };
+  }
+
+  return {
+    label: `${payment || 'unknown'} / ${approval || 'unknown'}`,
+    tone: 'text-muted-foreground border-border bg-background',
+    help: 'Campaign status is updating.',
+  };
+}
+
 export default function AdvertiserDashboard() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
@@ -15,16 +68,21 @@ export default function AdvertiserDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const activeCount = orders.filter(o => o.payment_status === 'paid' && (!o.campaign_ends_at || new Date(o.campaign_ends_at) > new Date())).length;
-  const totalSpend = orders.filter(o => o.payment_status === 'paid').reduce((s, o) => s + Number(o.price_paid), 0);
+  const activeCount = orders.filter((o) => {
+    const status = getCampaignStatus(o);
+    return status.label === 'Approved / Live';
+  }).length;
+  const pendingCount = orders.filter((o) => getCampaignStatus(o).label === 'Pending Owner Review').length;
+  const totalSpend = orders.filter(o => o.payment_status === 'paid' || o.payment_status === 'refunded').reduce((s, o) => s + Number(o.price_paid || 0), 0);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12" data-testid="advertiser-dashboard">
       <div className="text-[10px] uppercase tracking-[0.4em] text-primary mb-2">[ Advertiser / Dashboard ]</div>
       <h1 className="font-display font-black uppercase text-3xl sm:text-4xl tracking-tight mb-8">Hey, {user?.name}.</h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-border border border-border mb-12" data-testid="advertiser-stats">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border border-border mb-12" data-testid="advertiser-stats">
         <Stat label="Total Campaigns" value={orders.length} />
+        <Stat label="Pending Review" value={pendingCount} />
         <Stat label="Active" value={activeCount} />
         <Stat label="Lifetime Spend" value={`$${totalSpend.toFixed(2)}`} highlight />
       </div>
@@ -40,63 +98,110 @@ export default function AdvertiserDashboard() {
         </div>
       ) : (
         <div className="space-y-4" data-testid="advertiser-orders-list">
-          {orders.map((o) => (
-            <div key={o.id} className="border border-border bg-card p-5">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b border-border pb-4 mb-4">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">
-                    {new Date(o.created_at).toLocaleDateString()} · {o.category || 'General'}
+          {orders.map((o) => {
+            const status = getCampaignStatus(o);
+            const creatives = Array.isArray(o.creatives) ? o.creatives : [];
+
+            return (
+              <div key={o.id} className="border border-border bg-card p-5">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b border-border pb-4 mb-4">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">
+                      {new Date(o.created_at).toLocaleDateString()} · {o.category || 'General'}
+                    </div>
+                    <h3 className="font-display font-black uppercase text-xl tracking-tight">
+                      {o.website_name}
+                    </h3>
+                    <a href={o.website_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:text-acid mt-2">
+                      Visit website <ExternalLink size={12}/>
+                    </a>
                   </div>
-                  <h3 className="font-display font-black uppercase text-xl tracking-tight">
-                    {o.website_name}
-                  </h3>
-                  <a href={o.website_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:text-acid mt-2">
-                    Visit website <ExternalLink size={12}/>
-                  </a>
-                </div>
 
-                <div className="md:text-right">
-                  <div className="font-mono text-lg">${Number(o.price_paid).toFixed(2)}</div>
-                  <span className={`text-[10px] uppercase tracking-[0.2em] font-bold ${o.payment_status==='paid'?'text-acid':o.payment_status==='pending'?'text-gold':'text-muted-foreground'}`}>
-                    ● {o.payment_status}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-border bg-black p-4">
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Campaign Period</div>
-                  <div className="font-mono text-sm">
-                    {o.campaign_starts_at ? `${new Date(o.campaign_starts_at).toLocaleDateString()} → ${new Date(o.campaign_ends_at).toLocaleDateString()}` : 'Not started yet'}
+                  <div className="md:text-right">
+                    <div className="font-mono text-lg">${Number(o.price_paid || 0).toFixed(2)}</div>
+                    <span className={`inline-block mt-2 border px-3 py-1 text-[10px] uppercase tracking-[0.2em] font-bold ${status.tone}`}>
+                      ● {status.label}
+                    </span>
                   </div>
                 </div>
 
-                <div className="border border-primary/40 bg-primary/10 p-4">
-                  <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Website Owner</div>
-                  <div className="text-sm text-foreground mb-1">{o.owner_name || 'Website owner'}</div>
-                  {o.owner_email ? (
-                    <>
-                      <div className="font-mono text-sm text-primary break-all mb-3">{o.owner_email}</div>
-                      <a href={`mailto:${o.owner_email}`} className="inline-block bg-primary text-primary-foreground px-4 py-2 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-acid hover:text-black transition-colors">
-                        Contact Owner
-                      </a>
-                    </>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">Owner contact unavailable.</div>
-                  )}
+                <div className="border border-border bg-black p-4 mb-4">
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Status</div>
+                  <p className="text-sm text-muted-foreground">{status.help}</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="border border-border bg-black p-4">
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Campaign Period</div>
+                    <div className="font-mono text-sm">
+                      {o.campaign_starts_at ? `${new Date(o.campaign_starts_at).toLocaleDateString()} → ${new Date(o.campaign_ends_at).toLocaleDateString()}` : 'Not started yet'}
+                    </div>
+                  </div>
+
+                  <div className="border border-primary/40 bg-primary/10 p-4">
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Website Owner</div>
+                    <div className="text-sm text-foreground mb-1">{o.owner_name || 'Website owner'}</div>
+                    {o.owner_email ? (
+                      <>
+                        <div className="font-mono text-sm text-primary break-all mb-3">{o.owner_email}</div>
+                        <a href={`mailto:${o.owner_email}`} className="inline-block bg-primary text-primary-foreground px-4 py-2 text-[10px] uppercase tracking-[0.25em] font-bold hover:bg-acid hover:text-black transition-colors">
+                          Contact Owner
+                        </a>
+                      </>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">Owner contact unavailable.</div>
+                    )}
+                  </div>
+                </div>
+
+                {o.destination_url && (
+                  <div className="mt-4 border border-border bg-black p-4">
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Destination URL</div>
+                    <a href={o.destination_url} target="_blank" rel="noreferrer" className="text-sm text-primary break-all hover:text-acid">
+                      {o.destination_url}
+                    </a>
+                  </div>
+                )}
+
+                {creatives.length > 0 && (
+                  <div className="mt-4 border border-border bg-black p-4">
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-3">Submitted Creatives</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {creatives.map((creative) => (
+                        <div key={creative.id} className="border border-border bg-background p-3">
+                          <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">{creative.banner_size}</div>
+                          <div className="bg-black border border-border p-2 overflow-auto">
+                            <img src={creative.image_url} alt={`${creative.banner_size} creative`} className="max-w-full h-auto" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 border border-border bg-black p-4">
+                  <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Next Steps</div>
+                  <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-5">
+                    {status.label === 'Pending Owner Review' ? (
+                      <>
+                        <li>Wait for the website owner to approve or deny your ad.</li>
+                        <li>If denied, your payment will be refunded automatically when possible.</li>
+                      </>
+                    ) : status.label === 'Approved / Live' ? (
+                      <>
+                        <li>Your ad was approved. Contact the owner if you need placement confirmation.</li>
+                        <li>Keep this campaign page for your records.</li>
+                      </>
+                    ) : status.label === 'Refunded / Denied' ? (
+                      <li>This ad request was denied and refunded. You can browse the marketplace and submit a different ad.</li>
+                    ) : (
+                      <li>Watch this campaign status for updates.</li>
+                    )}
+                  </ul>
                 </div>
               </div>
-
-              <div className="mt-4 border border-border bg-black p-4">
-                <div className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Next Steps</div>
-                <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-5">
-                  <li>Send your banner image or ad creative to the website owner.</li>
-                  <li>Send the destination URL for your ad click.</li>
-                  <li>Confirm when the ad goes live and keep it running for the 30-day campaign.</li>
-                </ul>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
