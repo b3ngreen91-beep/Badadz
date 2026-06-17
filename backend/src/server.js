@@ -12,6 +12,7 @@ const ordersRouter = require('./routes/orders');
 const webhookRouter = require('./routes/webhook');
 const adminRouter = require('./routes/admin');
 const connectRouter = require('./routes/connect');
+const serveAdsRouter = require('./routes/serveAds');
 const { expireEndedCampaigns } = require('./services/expireCampaigns');
 
 const app = express();
@@ -65,6 +66,8 @@ app.get('/api', (_req, res) => res.json({
     'GET  /api/orders/my',
     'GET  /api/orders/sales',
     'POST /api/orders/webhook',
+    'GET  /api/serve/:slotId.js',
+    'GET  /api/serve/click/:orderId',
     'GET  /api/admin/stats',
   ],
 }));
@@ -78,6 +81,7 @@ app.use('/api/listings', listingsRouter);
 // This lets approval require a real seller transfer and lets /orders/sales retry unpaid seller transfers.
 app.use('/api/orders', orderPayoutsRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/serve', serveAdsRouter);
 app.use('/api/admin', adminRouter);
 
 // ---- 404 (path-less so it works in Express 4 AND 5) ----
