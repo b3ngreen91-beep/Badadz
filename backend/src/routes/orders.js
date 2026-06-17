@@ -72,7 +72,8 @@ async function ensureOrderApprovalColumns() {
     ADD COLUMN IF NOT EXISTS seller_payout_status TEXT NOT NULL DEFAULT 'not_started',
     ADD COLUMN IF NOT EXISTS stripe_transfer_id TEXT,
     ADD COLUMN IF NOT EXISTS seller_payout_error TEXT,
-    ADD COLUMN IF NOT EXISTS seller_paid_at TIMESTAMPTZ
+    ADD COLUMN IF NOT EXISTS seller_paid_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ
   `);
 
   await db.query(`
@@ -95,6 +96,45 @@ async function ensureOrderApprovalColumns() {
       ELSE approval_status
     END
   `);
+}
+
+async function expireCompletedCampaigns() {
+  await ensureOrderApprovalColumns();
+
+  const { rows: expiredOrders } = await db.query(`
+    UPDATE orders
+    SET completed_at = NOW()
+    WHERE payment_status = 'paid'
+      AND approval_status = 'approved'
+      AND campaign_ends_at IS NOT NULL
+      AND campaign_ends_at <= NOW()
+      AND completed_at IS NULL
+    RETURNING id, listing_id
+  `);
+
+  for (const order of expiredOrders) {
+    await db.query(
+      `
+      UPDATE listings
+      SET status = 'active', updated_at = NOW()
+      WHERE id = $1
+        AND status = 'sold'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM orders active_order
+          WHERE active_order.listing_id = $1
+            AND active_order.payment_status = 'paid'
+            AND active_order.approval_status = 'approved'
+            AND active_order.completed_at IS NULL
+            AND active_order.campaign_ends_at IS NOT NULL
+            AND active_order.campaign_ends_at > NOW()
+        )
+      `,
+      [order.listing_id]
+    );
+  }
+
+  return expiredOrders.length;
 }
 
 function creativesJsonSelect() {
@@ -263,7 +303,7 @@ router.post(
     const months = FIXED_CAMPAIGN_MONTHS;
 
     try {
-      await ensureOrderApprovalColumns();
+      await expireCompletedCampaigns();
 
       const uploadedFiles = CREATIVE_SIZES
         .map((size) => ({ size, file: req.files?.[`creative_${size}`]?.[0] }))
@@ -343,6 +383,8 @@ router.post(
 // Owner: approve paid ad request, start campaign, and transfer seller earnings.
 router.post('/:orderId/approve', authRequired, requireRole('owner'), async (req, res) => {
   try {
+    await expireCompletedCampaigns();
+
     const order = await getOwnerOrder(req.params.orderId, req.user.id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (order.payment_status !== 'paid') return res.status(400).json({ error: 'Order must be paid before approval' });
@@ -370,6 +412,7 @@ router.post('/:orderId/approve', authRequired, requireRole('owner'), async (req,
       `UPDATE orders
        SET approval_status = 'approved',
            approved_at = NOW(),
+           completed_at = NULL,
            campaign_starts_at = $1,
            campaign_ends_at = $2
        WHERE id = $3
@@ -400,6 +443,8 @@ router.post(
     if (!errors.isEmpty()) return res.status(400).json({ error: 'Invalid input' });
 
     try {
+      await expireCompletedCampaigns();
+
       const order = await getOwnerOrder(req.params.orderId, req.user.id);
       if (!order) return res.status(404).json({ error: 'Order not found' });
       if (order.approval_status === 'approved') return res.status(400).json({ error: 'Approved orders cannot be denied' });
@@ -428,7 +473,8 @@ router.post(
 // Verify a checkout session (called from success page)
 router.get('/session/:sessionId', authRequired, async (req, res) => {
   try {
-    await ensureOrderApprovalColumns();
+    await expireCompletedCampaigns();
+
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
     const paymentIntentId = typeof session.payment_intent === 'string'
@@ -466,7 +512,8 @@ router.get('/session/:sessionId', authRequired, async (req, res) => {
 // Advertiser: my campaigns
 router.get('/my', authRequired, requireRole('advertiser'), async (req, res) => {
   try {
-    await ensureOrderApprovalColumns();
+    await expireCompletedCampaigns();
+
     const { rows } = await db.query(
       `SELECT
          o.*,
@@ -494,7 +541,8 @@ router.get('/my', authRequired, requireRole('advertiser'), async (req, res) => {
 // Owner: sales / earnings
 router.get('/sales', authRequired, requireRole('owner'), async (req, res) => {
   try {
-    await ensureOrderApprovalColumns();
+    await expireCompletedCampaigns();
+
     const { rows } = await db.query(
       `SELECT o.*, l.website_name, u.name AS advertiser_name, u.email AS advertiser_email, ${creativesJsonSelect()}
        FROM orders o
