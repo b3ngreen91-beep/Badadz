@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 
 const authRouter = require('./routes/auth');
 const listingsRouter = require('./routes/listings');
+const orderPayoutsRouter = require('./routes/orderPayouts');
 const ordersRouter = require('./routes/orders');
 const webhookRouter = require('./routes/webhook');
 const adminRouter = require('./routes/admin');
@@ -73,6 +74,9 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'badadz-
 app.use('/api/auth', authRouter);
 app.use('/api/connect', connectRouter);
 app.use('/api/listings', listingsRouter);
+// Mount payout-first order routes before the legacy orders router.
+// This lets approval require a real seller transfer and lets /orders/sales retry unpaid seller transfers.
+app.use('/api/orders', orderPayoutsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/admin', adminRouter);
 
