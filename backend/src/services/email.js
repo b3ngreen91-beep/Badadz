@@ -28,14 +28,7 @@ async function sendEmail({ to, subject, html, text }) {
   }
 
   try {
-    const result = await resend.emails.send({
-      from: getFromEmail(),
-      to,
-      subject,
-      html,
-      text,
-    });
-
+    const result = await resend.emails.send({ from: getFromEmail(), to, subject, html, text });
     console.log(`[email] sent "${subject}" to ${to}`);
     return result;
   } catch (err) {
@@ -50,19 +43,17 @@ function money(value) {
 
 function date(value) {
   if (!value) return 'Not available yet';
-  return new Date(value).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  return new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
 async function sendCampaignPurchaseEmails(order) {
   const frontend = getFrontendUrl();
   const howItWorksUrl = `${frontend}/how-it-works`;
+  const advertiserDashboardUrl = `${frontend}/dashboard/advertiser`;
+  const ownerDashboardUrl = `${frontend}/dashboard/owner`;
 
   const buyerSubject = `BadAdz purchase confirmed: ${order.website_name}`;
-  const sellerSubject = `Your BadAdz listing sold: ${order.website_name}`;
+  const sellerSubject = `New BadAdz ad awaiting review: ${order.website_name}`;
 
   const buyerText = [
     `Your BadAdz purchase is confirmed.`,
@@ -71,102 +62,86 @@ async function sendCampaignPurchaseEmails(order) {
     `Price paid: ${money(order.price_paid)}`,
     `Campaign start: ${date(order.campaign_starts_at)}`,
     `Campaign end: ${date(order.campaign_ends_at)}`,
-    `Seller contact: ${order.seller_email || 'Not available'}`,
+    `Website owner: ${order.seller_email || 'Not available'}`,
     ``,
     `Next steps:`,
-    `1. Send the seller your banner image, destination URL, and any instructions.`,
-    `2. The seller is responsible for adding the ad to their website.`,
-    `3. Your placement should remain live for the full 30-day campaign.`,
+    `1. Your payment, destination URL, and uploaded ad creative were received by BadAdz.`,
+    `2. The website owner will review your banner previews.`,
+    `3. Once approved, your campaign automatically appears where the owner installed their BadAdz ad slot code.`,
+    `4. Track views, clicks, CTR, and status from My Campaigns.`,
+    ``,
+    `My Campaigns: ${advertiserDashboardUrl}`,
     `Learn more: ${howItWorksUrl}`,
-    `View your campaigns: ${frontend}`,
   ].join('\n');
 
   const sellerText = [
-    `Your BadAdz listing sold.`,
+    `A BadAdz advertiser paid for your listing and is awaiting review.`,
     `Website: ${order.website_name}`,
-    `Buyer: ${order.advertiser_name || 'Advertiser'}`,
-    `Buyer email: ${order.advertiser_email || 'Not available'}`,
+    `Advertiser: ${order.advertiser_name || 'Advertiser'}`,
+    `Advertiser email: ${order.advertiser_email || 'Not available'}`,
     `Price paid: ${money(order.price_paid)}`,
     `Your earnings: ${money(order.seller_earnings)}`,
     `Platform fee: ${money(order.platform_fee)}`,
-    `Campaign start: ${date(order.campaign_starts_at)}`,
-    `Campaign end: ${date(order.campaign_ends_at)}`,
     ``,
     `Next steps:`,
-    `1. Contact the advertiser if needed.`,
-    `2. Ask for their banner image, destination URL, and any placement instructions.`,
-    `3. Add the banner ad to your website.`,
-    `4. Keep it live for the full 30-day campaign.`,
-    `5. After 30 days, BadAdz will make the placement available again.`,
+    `1. Open your Owner Dashboard.`,
+    `2. Review the advertiser's uploaded banner previews and destination URL.`,
+    `3. Approve the ad if it is acceptable.`,
+    `4. Make sure your size-specific BadAdz ad slot code is installed on your website.`,
+    `5. Once approved, BadAdz automatically serves the matching banner in that slot and tracks views/clicks.`,
     ``,
-    `BadAdz handles payment and campaign tracking. The website owner is responsible for placing the ad on their website.`,
+    `Owner Dashboard: ${ownerDashboardUrl}`,
     `Learn more: ${howItWorksUrl}`,
-    `View your sales: ${frontend}`,
   ].join('\n');
 
   const buyerHtml = `
     <h2>Your BadAdz purchase is confirmed</h2>
-    <p>Your 30-day banner placement has been paid for and activated.</p>
+    <p>Your payment, destination URL, and uploaded ad creative were received by BadAdz.</p>
     <ul>
       <li><strong>Website:</strong> ${order.website_name}</li>
       <li><strong>URL:</strong> ${order.website_url}</li>
       <li><strong>Price paid:</strong> ${money(order.price_paid)}</li>
       <li><strong>Campaign start:</strong> ${date(order.campaign_starts_at)}</li>
       <li><strong>Campaign end:</strong> ${date(order.campaign_ends_at)}</li>
-      <li><strong>Seller contact:</strong> ${order.seller_email || 'Not available'}</li>
+      <li><strong>Website owner:</strong> ${order.seller_email || 'Not available'}</li>
     </ul>
     <h3>Next steps</h3>
     <ol>
-      <li>Send the seller your banner image, destination URL, and any instructions.</li>
-      <li>The seller is responsible for adding the ad to their website.</li>
-      <li>Your placement should remain live for the full 30-day campaign.</li>
+      <li>The website owner will review your banner previews and destination URL.</li>
+      <li>If approved, your campaign automatically appears where the owner installed their BadAdz ad slot code.</li>
+      <li>Track views, clicks, CTR, and status from My Campaigns.</li>
     </ol>
+    <p><a href="${advertiserDashboardUrl}">View My Campaigns</a></p>
     <p><a href="${howItWorksUrl}">Read how BadAdz works</a></p>
-    <p><a href="${frontend}">Open BadAdz</a></p>
   `;
 
   const sellerHtml = `
-    <h2>Your BadAdz listing sold</h2>
-    <p>A buyer purchased a 30-day banner placement from your listing.</p>
+    <h2>New BadAdz ad awaiting review</h2>
+    <p>An advertiser paid for your listing and submitted ad creative through BadAdz.</p>
     <ul>
       <li><strong>Website:</strong> ${order.website_name}</li>
-      <li><strong>Buyer:</strong> ${order.advertiser_name || 'Advertiser'}</li>
-      <li><strong>Buyer email:</strong> ${order.advertiser_email || 'Not available'}</li>
+      <li><strong>Advertiser:</strong> ${order.advertiser_name || 'Advertiser'}</li>
+      <li><strong>Advertiser email:</strong> ${order.advertiser_email || 'Not available'}</li>
       <li><strong>Price paid:</strong> ${money(order.price_paid)}</li>
       <li><strong>Your earnings:</strong> ${money(order.seller_earnings)}</li>
       <li><strong>Platform fee:</strong> ${money(order.platform_fee)}</li>
-      <li><strong>Campaign start:</strong> ${date(order.campaign_starts_at)}</li>
-      <li><strong>Campaign end:</strong> ${date(order.campaign_ends_at)}</li>
     </ul>
     <h3>Next steps</h3>
     <ol>
-      <li>Contact the advertiser if needed.</li>
-      <li>Ask for their banner image, destination URL, and any placement instructions.</li>
-      <li>Add the banner ad to your website.</li>
-      <li>Keep it live for the full 30-day campaign.</li>
-      <li>After 30 days, BadAdz will make the placement available again.</li>
+      <li>Open your Owner Dashboard.</li>
+      <li>Review the advertiser's banner previews and destination URL.</li>
+      <li>Approve the ad if it is acceptable.</li>
+      <li>Make sure your size-specific BadAdz ad slot code is installed on your website.</li>
+      <li>Once approved, BadAdz automatically serves the matching banner in that slot and tracks views/clicks.</li>
     </ol>
-    <p><strong>Important:</strong> BadAdz handles payment and campaign tracking. The website owner is responsible for placing the ad on their website.</p>
+    <p><a href="${ownerDashboardUrl}">Open Owner Dashboard</a></p>
     <p><a href="${howItWorksUrl}">Read how BadAdz works</a></p>
-    <p><a href="${frontend}">Open BadAdz</a></p>
   `;
 
   await Promise.allSettled([
-    sendEmail({
-      to: order.advertiser_email,
-      subject: buyerSubject,
-      html: buyerHtml,
-      text: buyerText,
-    }),
-    sendEmail({
-      to: order.seller_email,
-      subject: sellerSubject,
-      html: sellerHtml,
-      text: sellerText,
-    }),
+    sendEmail({ to: order.advertiser_email, subject: buyerSubject, html: buyerHtml, text: buyerText }),
+    sendEmail({ to: order.seller_email, subject: sellerSubject, html: sellerHtml, text: sellerText }),
   ]);
 }
 
-module.exports = {
-  sendCampaignPurchaseEmails,
-};
+module.exports = { sendCampaignPurchaseEmails };
