@@ -18,6 +18,21 @@ function pickCreative(creatives, requestedSize) {
   return creatives[0];
 }
 
+function safeUrl(value) {
+  try {
+    return new URL(value);
+  } catch (_err) {
+    return null;
+  }
+}
+
+function sameHostOrSubdomain(actualHost, expectedHost) {
+  if (!actualHost || !expectedHost) return false;
+  const actual = String(actualHost).toLowerCase().replace(/^www\./, '');
+  const expected = String(expectedHost).toLowerCase().replace(/^www\./, '');
+  return actual === expected || actual.endsWith(`.${expected}`);
+}
+
 async function ensureAdServingColumns() {
   await db.query(`
     ALTER TABLE orders
@@ -25,6 +40,15 @@ async function ensureAdServingColumns() {
     ADD COLUMN IF NOT EXISTS click_count INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS last_impression_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS last_click_at TIMESTAMPTZ
+  `);
+
+  await db.query(`
+    ALTER TABLE listings
+    ADD COLUMN IF NOT EXISTS ad_code_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS ad_code_verified_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS ad_code_last_seen_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS ad_code_last_seen_url TEXT,
+    ADD COLUMN IF NOT EXISTS ad_code_last_seen_domain TEXT
   `);
 }
 
@@ -68,6 +92,21 @@ async function getActiveCampaignForListing(listingId) {
   return rows[0] || null;
 }
 
+function verifyBeaconScript(req) {
+  const verifyUrl = JSON.stringify(`${publicBaseUrl(req)}/ads/verify/${req.params.listingId}`);
+  return `
+  try {
+    var badadzPageUrl = window.location.href;
+    var badadzVerifyUrl = ${verifyUrl} + '?page=' + encodeURIComponent(badadzPageUrl) + '&r=' + Date.now();
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(badadzVerifyUrl);
+    } else {
+      var badadzImg = new Image();
+      badadzImg.src = badadzVerifyUrl;
+    }
+  } catch (badadzVerifyError) {}`;
+}
+
 function noAdScript(req) {
   const frontend = process.env.FRONTEND_URL || 'https://badadz.net';
   const listingId = JSON.stringify(req.params.listingId || '');
@@ -77,6 +116,7 @@ function noAdScript(req) {
 (function () {
   var script = document.currentScript;
   if (!script) return;
+  ${verifyBeaconScript(req)}
 
   var wrapper = document.createElement('div');
   wrapper.setAttribute('data-badadz-slot', ${listingId});
@@ -109,7 +149,7 @@ function noAdScript(req) {
 }());`;
 }
 
-function campaignScript({ campaign, creative, clickUrl }) {
+function campaignScript({ req, campaign, creative, clickUrl }) {
   const imageUrl = JSON.stringify(creative.image_url);
   const href = JSON.stringify(clickUrl);
   const alt = JSON.stringify(`${campaign.website_name || 'Website'} ad`);
@@ -119,6 +159,7 @@ function campaignScript({ campaign, creative, clickUrl }) {
 (function () {
   var script = document.currentScript;
   if (!script) return;
+  ${verifyBeaconScript(req)}
   var wrapper = document.createElement('div');
   wrapper.setAttribute('data-badadz-slot', ${JSON.stringify(campaign.listing_id)});
   wrapper.setAttribute('data-badadz-campaign', ${JSON.stringify(campaign.id)});
@@ -141,6 +182,50 @@ function campaignScript({ campaign, creative, clickUrl }) {
   script.parentNode.insertBefore(wrapper, script);
 }());`;
 }
+
+router.get('/verify/:listingId', async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.type('image/gif');
+
+  const pixel = Buffer.from('R0lGODlhAQABAPAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
+
+  try {
+    await ensureAdServingColumns();
+
+    const pageUrl = typeof req.query.page === 'string' ? req.query.page.slice(0, 1000) : '';
+    const page = safeUrl(pageUrl);
+    const pageDomain = page?.hostname || '';
+
+    const listingResult = await db.query(
+      'SELECT id, website_url FROM listings WHERE id = $1',
+      [req.params.listingId]
+    );
+
+    if (listingResult.rows.length === 0) return res.status(200).send(pixel);
+
+    const listing = listingResult.rows[0];
+    const expected = safeUrl(listing.website_url);
+    const expectedDomain = expected?.hostname || '';
+    const domainMatches = sameHostOrSubdomain(pageDomain, expectedDomain);
+
+    await db.query(
+      `UPDATE listings
+       SET ad_code_last_seen_at = NOW(),
+           ad_code_last_seen_url = $2,
+           ad_code_last_seen_domain = $3,
+           ad_code_verified = CASE WHEN $4 THEN TRUE ELSE ad_code_verified END,
+           ad_code_verified_at = CASE WHEN $4 THEN COALESCE(ad_code_verified_at, NOW()) ELSE ad_code_verified_at END,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [listing.id, pageUrl, pageDomain, domainMatches]
+    );
+
+    return res.status(200).send(pixel);
+  } catch (err) {
+    console.error('ad verify beacon error', err);
+    return res.status(200).send(pixel);
+  }
+});
 
 router.get('/click/:orderId', async (req, res) => {
   try {
@@ -189,7 +274,7 @@ router.get('/:listingId.js', async (req, res) => {
     );
 
     const clickUrl = `${publicBaseUrl(req)}/ads/click/${campaign.id}`;
-    return res.send(campaignScript({ campaign, creative, clickUrl }));
+    return res.send(campaignScript({ req, campaign, creative, clickUrl }));
   } catch (err) {
     console.error('ad serve error', err);
     return res.status(200).send(noAdScript(req));
