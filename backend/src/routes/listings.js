@@ -89,6 +89,16 @@ function uploadToCloudinary(file) {
   });
 }
 
+function backendBaseUrl(req) {
+  const configured = process.env.PUBLIC_BASE_URL || process.env.BACKEND_URL;
+  if (configured) return configured.replace(/\/$/, '');
+  return `${req.protocol}://${req.get('host')}`;
+}
+
+function installationNeedle(req, listingId) {
+  return `${backendBaseUrl(req)}/ads/${listingId}.js`;
+}
+
 router.get(
   '/',
   [
@@ -171,6 +181,70 @@ router.get('/meta/categories', async (_req, res) => {
   } catch (err) {
     console.error('categories error', err);
     res.status(500).json({ error: 'Failed to load categories' });
+  }
+});
+
+router.post('/:id/verify-install', authRequired, requireRole('owner'), async (req, res) => {
+  try {
+    await ensureConnectColumns();
+
+    const { rows } = await db.query('SELECT id, user_id, website_url, ad_code_verified, ad_code_verified_at FROM listings WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Listing not found' });
+
+    const listing = rows[0];
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    let html = '';
+
+    try {
+      const response = await fetch(listing.website_url, {
+        signal: controller.signal,
+        redirect: 'follow',
+        headers: {
+          'user-agent': 'BadAdz install verifier (+https://badadz.net)',
+          accept: 'text/html,application/xhtml+xml',
+        },
+      });
+      html = await response.text();
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const needle = installationNeedle(req, listing.id);
+    const found = html.includes(needle) || html.includes(`/ads/${listing.id}.js`) || html.includes(`data-badadz-slot=\"${listing.id}\"`) || html.includes(`data-badadz-slot='${listing.id}'`);
+
+    if (found) {
+      const update = await db.query(
+        `UPDATE listings
+         SET ad_code_verified = TRUE,
+             ad_code_verified_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1 AND user_id = $2
+         RETURNING *`,
+        [listing.id, req.user.id]
+      );
+      return res.json({ verified: true, listing: update.rows[0], message: 'Installation verified. Your ad slot is connected.' });
+    }
+
+    await db.query(
+      `UPDATE listings
+       SET ad_code_verified = FALSE,
+           updated_at = NOW()
+       WHERE id = $1 AND user_id = $2`,
+      [listing.id, req.user.id]
+    );
+
+    return res.status(200).json({
+      verified: false,
+      message: 'We could not detect the BadAdz code yet. Paste the script on your site, publish/save the page, then try again.',
+      expected: needle,
+    });
+  } catch (err) {
+    console.error('verify install error', err);
+    return res.status(200).json({
+      verified: false,
+      message: 'We could not check your website yet. Make sure the page is public, then try again.',
+    });
   }
 });
 
