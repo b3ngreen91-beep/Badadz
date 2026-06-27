@@ -54,6 +54,10 @@ export default function Home() {
   }, [categories]);
 
   const featuredListings = listings.slice(0, 4);
+  const founderLimit = Number(marketStats.founding_seller_limit || 50);
+  const founderClaimed = Number(marketStats.founding_sellers_claimed || 0);
+  const founderRemaining = Math.max(Number(marketStats.founding_seller_spots_remaining ?? (founderLimit - founderClaimed)), 0);
+  const founderFull = founderRemaining <= 0;
   const selectCategory = (name) => { setCategory(name === category ? '' : name); setTimeout(() => document.getElementById('marketplace')?.scrollIntoView({ behavior: 'smooth' }), 50); };
 
   return (
@@ -71,6 +75,25 @@ export default function Home() {
             </div>
           </div>
           <div className="lg:col-span-4"><div className="border border-border bg-card p-4"><div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-3">Marketplace Metrics</div><div className="grid grid-cols-2 gap-px bg-border border border-border" data-testid="hero-stats"><Stat label="Active Sites" value={compactNumber(marketStats.active_websites)} /><Stat label="Live Campaigns" value={compactNumber(marketStats.active_campaigns)} /><Stat label="Impressions" value={compactNumber(marketStats.total_impressions)} /><Stat label="Clicks" value={compactNumber(marketStats.total_clicks)} /></div></div></div>
+        </div>
+      </section>
+      <section className="border-b border-primary bg-primary/10" data-testid="founding-seller-banner">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <div className="lg:col-span-8">
+            <div className="text-[10px] uppercase tracking-[0.35em] text-primary font-bold mb-3">🏆 Founding Seller Program</div>
+            <h2 className="font-display font-black uppercase text-3xl sm:text-5xl tracking-tight">Lock in 15% for life.</h2>
+            <p className="mt-4 text-sm text-muted-foreground leading-relaxed max-w-3xl">
+              The first {founderLimit} website owners who join BadAdz with promo code <span className="text-foreground font-bold">FOUNDING50</span> get a 15% lifetime platform fee instead of 20%. Free to join. Free to list. Keep 85% of every sale.
+            </p>
+          </div>
+          <div className="lg:col-span-4 border border-primary bg-background p-5 text-center">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">{founderFull ? 'Program Status' : 'Founder Spots Remaining'}</div>
+            <div className="font-display font-black text-5xl sm:text-6xl text-primary mt-2" data-testid="founding-spots-remaining">{founderFull ? 'Full' : founderRemaining}</div>
+            <div className="text-xs uppercase tracking-[0.25em] text-muted-foreground mt-2">{founderFull ? `${founderLimit} of ${founderLimit} claimed` : `${founderClaimed} of ${founderLimit} claimed`}</div>
+            <Link to="/register" className="block mt-5 bg-primary text-primary-foreground px-5 py-3 text-center text-xs uppercase tracking-[0.25em] font-bold hover:bg-acid hover:text-black transition-colors">
+              {founderFull ? 'Join BadAdz' : 'Claim Your Spot →'}
+            </Link>
+          </div>
         </div>
       </section>
       <div className="hidden sm:block"><Marquee /></div>
