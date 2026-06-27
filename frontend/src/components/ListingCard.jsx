@@ -10,10 +10,10 @@ export default function ListingCard({ listing }) {
   return (
     <Link
       to={`/listings/${listing.id}`}
-      className="group bg-card border border-border hover:border-primary transition-colors duration-150 flex flex-col"
+      className="group bg-card border border-border hover:border-primary transition-colors duration-150 flex flex-col overflow-hidden"
       data-testid={`listing-card-${listing.id}`}
     >
-      <div className="aspect-video bg-black overflow-hidden border-b border-border">
+      <div className="aspect-video bg-black overflow-hidden border-b border-border relative">
         <img
           src={listing.image_url}
           alt={listing.website_name}
@@ -21,6 +21,10 @@ export default function ListingCard({ listing }) {
           loading="lazy"
           onError={(e) => { e.currentTarget.style.opacity = 0.2; }}
         />
+        <div className="absolute top-2 left-2 flex flex-wrap gap-2">
+          {listing.owner_founding_member && <span className="bg-black/85 border border-gold text-gold px-2 py-1 text-[9px] uppercase tracking-[0.18em] font-bold">Founder</span>}
+          {listing.ad_code_verified && <span className="bg-black/85 border border-acid text-acid px-2 py-1 text-[9px] uppercase tracking-[0.18em] font-bold">Verified Slot</span>}
+        </div>
       </div>
       <div className="p-5 flex flex-col gap-3 flex-1">
         <div className="flex items-start justify-between gap-3">
