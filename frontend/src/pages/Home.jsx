@@ -66,11 +66,11 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-20 md:py-28 grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
           <div className="lg:col-span-8 animate-fade-in-up">
             <div className="text-[10px] uppercase tracking-[0.35em] text-primary font-bold mb-4">Direct banner advertising marketplace</div>
-            <h1 className="font-display font-black tracking-tighter uppercase text-4xl sm:text-6xl lg:text-7xl leading-[0.88] break-words">Buy & sell<br />website banner ads.</h1>
-            <p className="mt-5 sm:mt-6 max-w-2xl text-sm md:text-base text-muted-foreground leading-relaxed">BadAdz helps advertisers buy direct website placements and helps publishers earn from ad space.</p>
+            <h1 className="font-display font-black tracking-tighter uppercase text-4xl sm:text-6xl lg:text-7xl leading-[0.88] break-words">Turn websites<br />into ad income.</h1>
+            <p className="mt-5 sm:mt-6 max-w-2xl text-sm md:text-base text-muted-foreground leading-relaxed">List banner space for free. Businesses advertise directly on real websites. Website owners keep up to 85% of every sale.</p>
             <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:flex sm:flex-wrap gap-3">
-              <a href="#marketplace" className="bg-primary text-primary-foreground px-5 sm:px-6 py-3 text-center text-xs uppercase tracking-[0.28em] font-bold hover:bg-acid hover:text-black transition-colors" data-testid="hero-browse-btn">Browse Ad Placements →</a>
-              <Link to="/listings/new" className="border border-foreground px-5 sm:px-6 py-3 text-center text-xs uppercase tracking-[0.28em] font-bold hover:bg-foreground hover:text-background transition-colors" data-testid="hero-sell-btn">Sell My Ad Space</Link>
+              <Link to="/register" className="bg-primary text-primary-foreground px-5 sm:px-6 py-3 text-center text-xs uppercase tracking-[0.28em] font-bold hover:bg-acid hover:text-black transition-colors" data-testid="hero-sell-btn">Start Selling Ad Space →</Link>
+              <a href="#marketplace" className="border border-foreground px-5 sm:px-6 py-3 text-center text-xs uppercase tracking-[0.28em] font-bold hover:bg-foreground hover:text-background transition-colors" data-testid="hero-browse-btn">Browse Placements</a>
               <Link to="/how-it-works" className="border border-border px-5 sm:px-6 py-3 text-center text-xs uppercase tracking-[0.28em] font-bold hover:border-primary hover:text-primary transition-colors">How It Works</Link>
             </div>
           </div>
@@ -80,7 +80,7 @@ export default function Home() {
       <section className="border-b border-primary bg-primary/10" data-testid="founding-seller-banner">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           <div className="lg:col-span-8">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-primary font-bold mb-3">🏆 Founding Seller Program</div>
+            <div className="text-[10px] uppercase tracking-[0.35em] text-primary font-bold mb-3">Founding Seller Program</div>
             <h2 className="font-display font-black uppercase text-3xl sm:text-5xl tracking-tight">Lock in 15% for life.</h2>
             <p className="mt-4 text-sm text-muted-foreground leading-relaxed max-w-3xl">
               The first {founderLimit} website owners who join BadAdz with promo code <span className="text-foreground font-bold">FOUNDING50</span> get a 15% lifetime platform fee instead of 20%. Free to join. Free to list. Keep 85% of every sale.
