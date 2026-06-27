@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'advertiser' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'advertiser', promoCode: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -14,8 +14,8 @@ export default function Register() {
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      const u = await register(form);
-      toast.success('Account created');
+      const u = await register({ ...form, promoCode: form.promoCode.trim() });
+      toast.success(u.founding_member ? 'Account created — FOUNDING50 applied' : 'Account created');
       navigate(u.role === 'owner' ? '/dashboard/owner' : '/', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');
@@ -30,7 +30,7 @@ export default function Register() {
     <div className="max-w-2xl mx-auto px-6 py-20" data-testid="register-page">
       <div className="text-[10px] uppercase tracking-[0.4em] text-primary mb-4">[ Auth / Register ]</div>
       <h1 className="font-display font-black uppercase text-3xl tracking-tight mb-2">Create account</h1>
-      <p className="text-sm text-muted-foreground mb-8">Pick your side. You can&apos;t have both — yet.</p>
+      <p className="text-sm text-muted-foreground mb-8">First 50 website owners can use code FOUNDING50 to lock in a 15% lifetime platform fee.</p>
 
       <form onSubmit={onSubmit} className="space-y-5 border border-border p-6 bg-card">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3" role="radiogroup">
@@ -45,7 +45,7 @@ export default function Register() {
             active={form.role==='owner'}
             onClick={()=>setForm(f=>({...f, role:'owner'}))}
             title="I'm a Site Owner"
-            desc="List banner inventory and earn 80%."
+            desc="List banner inventory and earn 80% — or 85% with FOUNDING50."
             testid="role-owner-btn"
           />
         </div>
@@ -64,6 +64,14 @@ export default function Register() {
           <input type="password" required minLength={8} value={form.password} onChange={set('password')}
             className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary"
             data-testid="register-password-input" />
+        </Field>
+        <Field label="Promo Code — optional">
+          <input value={form.promoCode} onChange={set('promoCode')} placeholder="FOUNDING50"
+            className="w-full bg-background border border-border px-3 py-2 text-sm uppercase focus:outline-none focus:border-primary"
+            data-testid="register-promo-code-input" />
+          <span className="block mt-2 text-[11px] text-muted-foreground">
+            Website owners only: FOUNDING50 gives the first 50 sellers a 15% lifetime platform fee instead of 20%.
+          </span>
         </Field>
 
         {error && <div className="text-xs text-primary border border-primary px-3 py-2" data-testid="register-error">{error}</div>}
