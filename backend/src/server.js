@@ -15,6 +15,7 @@ const orderAutoCreativesRouter = require('./routes/orderAutoCreatives');
 const webhookRouter = require('./routes/webhook');
 const adminRouter = require('./routes/admin');
 const connectRouter = require('./routes/connect');
+const installRouter = require('./routes/install');
 const adsRouter = require('./routes/ads');
 const { expireEndedCampaigns } = require('./services/expireCampaigns');
 
@@ -49,6 +50,7 @@ app.get('/api', (_req, res) => res.json({
     'POST /api/auth/logout',
     'POST /api/connect/onboard',
     'GET  /api/connect/status',
+    'POST /api/install/verify',
     'GET  /api/listings',
     'GET  /api/listings/meta/categories',
     'GET  /api/listings/:id',
@@ -69,6 +71,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'badadz-
 
 app.use('/api/auth', authRouter);
 app.use('/api/connect', connectRouter);
+app.use('/api/install', installRouter);
 app.use('/api/marketplace', marketplaceRouter);
 app.use('/api/listings', listingsRouter);
 app.use('/ads', adsRouter);
