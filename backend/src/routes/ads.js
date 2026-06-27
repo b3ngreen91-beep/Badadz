@@ -68,15 +68,44 @@ async function getActiveCampaignForListing(listingId) {
   return rows[0] || null;
 }
 
-function noAdScript() {
+function noAdScript(req) {
+  const frontend = process.env.FRONTEND_URL || 'https://badadz.net';
+  const listingId = JSON.stringify(req.params.listingId || '');
+  const advertiseUrl = JSON.stringify(`${frontend.replace(/\/$/, '')}/listings/${req.params.listingId || ''}`);
+
   return `
 (function () {
   var script = document.currentScript;
   if (!script) return;
-  var box = document.createElement('div');
-  box.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:90px;border:1px dashed #d6d6d6;background:#fafafa;color:#777;font:12px Arial,sans-serif;text-align:center;box-sizing:border-box;padding:10px;';
-  box.textContent = 'Ad space available on BadAdz';
-  script.parentNode.insertBefore(box, script);
+
+  var wrapper = document.createElement('div');
+  wrapper.setAttribute('data-badadz-slot', ${listingId});
+  wrapper.setAttribute('data-badadz-status', 'available');
+  wrapper.style.cssText = 'box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;min-height:90px;border:2px dashed #ef233c;background:linear-gradient(135deg,#050505,#151515);color:#fff;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:14px;overflow:hidden;';
+
+  var inner = document.createElement('div');
+  inner.style.cssText = 'max-width:760px;line-height:1.2;';
+
+  var eyebrow = document.createElement('div');
+  eyebrow.textContent = 'YOUR BUSINESS HERE';
+  eyebrow.style.cssText = 'font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#ef233c;font-weight:800;margin-bottom:6px;';
+
+  var headline = document.createElement('a');
+  headline.href = ${advertiseUrl};
+  headline.target = '_blank';
+  headline.rel = 'noopener sponsored';
+  headline.textContent = 'Advertise on this website';
+  headline.style.cssText = 'display:inline-block;color:#fff;text-decoration:none;font-size:18px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;';
+
+  var footer = document.createElement('div');
+  footer.textContent = 'Powered by BadAdz';
+  footer.style.cssText = 'margin-top:7px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#bdbdbd;';
+
+  inner.appendChild(eyebrow);
+  inner.appendChild(headline);
+  inner.appendChild(footer);
+  wrapper.appendChild(inner);
+  script.parentNode.insertBefore(wrapper, script);
 }());`;
 }
 
@@ -145,11 +174,11 @@ router.get('/:listingId.js', async (req, res) => {
 
   try {
     const campaign = await getActiveCampaignForListing(req.params.listingId);
-    if (!campaign) return res.send(noAdScript());
+    if (!campaign) return res.send(noAdScript(req));
 
     const requestedSize = typeof req.query.size === 'string' ? req.query.size : '';
     const creative = pickCreative(campaign.creatives, requestedSize);
-    if (!creative) return res.send(noAdScript());
+    if (!creative) return res.send(noAdScript(req));
 
     await db.query(
       `UPDATE orders
@@ -163,7 +192,7 @@ router.get('/:listingId.js', async (req, res) => {
     return res.send(campaignScript({ campaign, creative, clickUrl }));
   } catch (err) {
     console.error('ad serve error', err);
-    return res.status(200).send(noAdScript());
+    return res.status(200).send(noAdScript(req));
   }
 });
 
