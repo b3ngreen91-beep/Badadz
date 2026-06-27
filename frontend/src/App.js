@@ -13,6 +13,7 @@ import ListingDetail from './pages/ListingDetail';
 import CreateListing from './pages/CreateListing';
 import EditListing from './pages/EditListing';
 import OwnerDashboard from './pages/OwnerDashboard';
+import OwnerInstall from './pages/OwnerInstall';
 import AdvertiserDashboard from './pages/AdvertiserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import CheckoutResult from './pages/CheckoutResult';
@@ -59,6 +60,9 @@ function App() {
               <Route path="/listings/:id" element={<ListingDetail />} />
               <Route path="/dashboard/owner" element={
                 <ProtectedRoute role="owner"><OwnerDashboard /></ProtectedRoute>
+              } />
+              <Route path="/dashboard/owner/install" element={
+                <ProtectedRoute role="owner"><OwnerInstall /></ProtectedRoute>
               } />
               <Route path="/dashboard/advertiser" element={
                 <ProtectedRoute role="advertiser"><AdvertiserDashboard /></ProtectedRoute>
