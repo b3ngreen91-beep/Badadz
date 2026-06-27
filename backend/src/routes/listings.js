@@ -26,7 +26,16 @@ async function ensureConnectColumns() {
   await db.query(`
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS stripe_connect_account_id TEXT,
-    ADD COLUMN IF NOT EXISTS stripe_connect_onboarding_complete BOOLEAN DEFAULT FALSE
+    ADD COLUMN IF NOT EXISTS stripe_connect_onboarding_complete BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5,2) NOT NULL DEFAULT 20,
+    ADD COLUMN IF NOT EXISTS founding_member BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS promo_code_used TEXT
+  `);
+
+  await db.query(`
+    ALTER TABLE listings
+    ADD COLUMN IF NOT EXISTS ad_code_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS ad_code_verified_at TIMESTAMPTZ
   `);
 }
 
@@ -87,7 +96,7 @@ router.get(
     query('category').optional().isString(),
     query('min_price').optional().isFloat({ min: 0 }),
     query('max_price').optional().isFloat({ min: 0 }),
-    query('owner_id').optional().isInt(),
+    query('owner_id').optional().isString(),
     query('include_inactive').optional().isBoolean().toBoolean(),
   ],
   async (req, res) => {
@@ -125,7 +134,11 @@ router.get(
     }
 
     const sql = `
-      SELECT l.*, u.name AS owner_name
+      SELECT
+        l.*,
+        u.name AS owner_name,
+        u.founding_member AS owner_founding_member,
+        u.commission_rate AS owner_commission_rate
       FROM listings l
       JOIN users u ON u.id = l.user_id
       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
@@ -134,6 +147,7 @@ router.get(
     `;
 
     try {
+      await ensureConnectColumns();
       const { rows } = await db.query(sql, params);
       res.json({ listings: rows });
     } catch (err) {
@@ -162,9 +176,14 @@ router.get('/meta/categories', async (_req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
+    await ensureConnectColumns();
     const { rows } = await db.query(
       `
-      SELECT l.*, u.name AS owner_name
+      SELECT
+        l.*,
+        u.name AS owner_name,
+        u.founding_member AS owner_founding_member,
+        u.commission_rate AS owner_commission_rate
       FROM listings l
       JOIN users u ON u.id = l.user_id
       WHERE l.id = $1
