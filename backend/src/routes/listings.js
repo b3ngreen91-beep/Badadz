@@ -35,7 +35,10 @@ async function ensureConnectColumns() {
   await db.query(`
     ALTER TABLE listings
     ADD COLUMN IF NOT EXISTS ad_code_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS ad_code_verified_at TIMESTAMPTZ
+    ADD COLUMN IF NOT EXISTS ad_code_verified_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS ad_code_last_seen_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS ad_code_last_seen_url TEXT,
+    ADD COLUMN IF NOT EXISTS ad_code_last_seen_domain TEXT
   `);
 }
 
@@ -188,10 +191,24 @@ router.post('/:id/verify-install', authRequired, requireRole('owner'), async (re
   try {
     await ensureConnectColumns();
 
-    const { rows } = await db.query('SELECT id, user_id, website_url, ad_code_verified, ad_code_verified_at FROM listings WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    const { rows } = await db.query(
+      `SELECT id, user_id, website_url, ad_code_verified, ad_code_verified_at, ad_code_last_seen_at, ad_code_last_seen_url, ad_code_last_seen_domain
+       FROM listings
+       WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
     if (rows.length === 0) return res.status(404).json({ error: 'Listing not found' });
 
     const listing = rows[0];
+
+    if (listing.ad_code_verified && listing.ad_code_last_seen_at) {
+      return res.json({
+        verified: true,
+        listing,
+        message: 'Installation verified. The BadAdz script has loaded from your website.',
+      });
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     let html = '';
@@ -211,32 +228,29 @@ router.post('/:id/verify-install', authRequired, requireRole('owner'), async (re
     }
 
     const needle = installationNeedle(req, listing.id);
-    const found = html.includes(needle) || html.includes(`/ads/${listing.id}.js`) || html.includes(`data-badadz-slot=\"${listing.id}\"`) || html.includes(`data-badadz-slot='${listing.id}'`);
+    const foundInHtml = html.includes(needle) || html.includes(`/ads/${listing.id}.js`) || html.includes(`data-badadz-slot=\"${listing.id}\"`) || html.includes(`data-badadz-slot='${listing.id}'`);
 
-    if (found) {
+    if (foundInHtml) {
       const update = await db.query(
         `UPDATE listings
          SET ad_code_verified = TRUE,
-             ad_code_verified_at = NOW(),
+             ad_code_verified_at = COALESCE(ad_code_verified_at, NOW()),
              updated_at = NOW()
          WHERE id = $1 AND user_id = $2
          RETURNING *`,
         [listing.id, req.user.id]
       );
-      return res.json({ verified: true, listing: update.rows[0], message: 'Installation verified. Your ad slot is connected.' });
+      return res.json({
+        verified: true,
+        listing: update.rows[0],
+        message: 'Installation found in your website HTML. Visit the page once to confirm the script is loading live.',
+      });
     }
-
-    await db.query(
-      `UPDATE listings
-       SET ad_code_verified = FALSE,
-           updated_at = NOW()
-       WHERE id = $1 AND user_id = $2`,
-      [listing.id, req.user.id]
-    );
 
     return res.status(200).json({
       verified: false,
-      message: 'We could not detect the BadAdz code yet. Paste the script on your site, publish/save the page, then try again.',
+      listing,
+      message: 'We could not detect the BadAdz script yet. Paste the code, publish the page, open that page once, then click Verify again.',
       expected: needle,
     });
   } catch (err) {
