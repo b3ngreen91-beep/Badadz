@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { toast } from 'sonner';
-import { BarChart3, Code2, CreditCard, Edit3, Pause, Play, Plus, ShieldCheck, Trophy } from 'lucide-react';
+import { BarChart3, Code2, CreditCard, Edit3, Pause, Play, Plus, Trophy } from 'lucide-react';
 import AdInstallWizard from '../components/AdInstallWizard';
+import LaunchReadinessPanel from '../components/LaunchReadinessPanel';
 
 function isTestOrder(order) {
   return Number(order.price_paid || 0) <= 0;
@@ -178,9 +179,9 @@ export default function OwnerDashboard() {
         <Stat label="Verified Slots" value={`${verifiedCount}/${listings.length || 0}`} />
       </div>
 
-      <LaunchReadiness stripeConnected={stripeConnected} activeCount={activeCount} needsInstallCount={needsInstallCount} pendingOrders={pendingOrders.length} />
+      <LaunchReadinessPanel stripeConnected={stripeConnected} activeCount={activeCount} verifiedCount={verifiedCount} totalListings={listings.length} needsInstallCount={needsInstallCount} pendingOrders={pendingOrders.length} />
 
-      <section className="mb-8">
+      <section id="ad-requests" className="mb-8">
         <div className={`border p-5 sm:p-6 mb-4 ${pendingOrders.length > 0 ? 'border-gold bg-gold/10' : 'border-border bg-card'}`}>
           <div className={`text-[10px] uppercase tracking-[0.3em] font-bold mb-2 ${pendingOrders.length > 0 ? 'text-gold' : 'text-muted-foreground'}`}>Ad requests</div>
           <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight">
@@ -193,7 +194,7 @@ export default function OwnerDashboard() {
         {pendingOrders.length > 0 && <div className="space-y-4">{pendingOrders.map((order) => <PendingReviewCard key={order.id} order={order} actionBusy={actionBusy} approveOrder={approveOrder} denyOrder={denyOrder} />)}</div>}
       </section>
 
-      <section className="mb-8">
+      <section id="owner-listings" className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
           <div>
             <h2 className="font-display font-black uppercase text-2xl sm:text-3xl tracking-tight">My Listings</h2>
@@ -213,24 +214,6 @@ export default function OwnerDashboard() {
   );
 }
 
-function LaunchReadiness({ stripeConnected, activeCount, needsInstallCount, pendingOrders }) {
-  const items = [
-    { label: 'Stripe connected', ok: stripeConnected, help: 'Needed before receiving payouts.' },
-    { label: 'Active listings', ok: activeCount > 0, help: 'Create at least one listing.' },
-    { label: 'Ad slots verified', ok: needsInstallCount === 0, help: needsInstallCount ? `${needsInstallCount} listing${needsInstallCount === 1 ? '' : 's'} need code installed.` : 'Ready for automatic ad serving.' },
-    { label: 'Ad requests reviewed', ok: pendingOrders === 0, help: pendingOrders ? `${pendingOrders} waiting for approval.` : 'No pending requests.' },
-  ];
-
-  return (
-    <section className="border border-border bg-card p-5 sm:p-6 mb-8" data-testid="launch-readiness">
-      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-primary font-bold mb-3"><ShieldCheck size={14}/> Launch Readiness</div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-px bg-border border border-border">
-        {items.map((item) => <div key={item.label} className="bg-background p-4"><div className={`text-[10px] uppercase tracking-[0.22em] font-bold ${item.ok ? 'text-acid' : 'text-gold'}`}>● {item.ok ? 'Ready' : 'Action'}</div><div className="font-display font-black uppercase tracking-tight mt-2">{item.label}</div><p className="text-xs text-muted-foreground mt-2 leading-relaxed">{item.help}</p></div>)}
-      </div>
-    </section>
-  );
-}
-
 function ListingsTable({ listings, approvedOrders, openCodeListingId, setOpenCodeListingId, toggleStatus }) {
   if (!listings.length) return <div className="border border-border p-8 sm:p-10 text-center text-muted-foreground text-sm">No visible listings.</div>;
   return <div className="space-y-4" data-testid="owner-listings-table">{listings.map((listing) => <OwnerListingCard key={listing.id} listing={listing} approvedOrders={approvedOrders} open={openCodeListingId === listing.id} setOpenCodeListingId={setOpenCodeListingId} toggleStatus={toggleStatus} />)}</div>;
@@ -246,7 +229,7 @@ function OwnerListingCard({ listing, approvedOrders, open, setOpenCodeListingId,
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <StatusBadge status={listing.status} live={live} />
             {listing.ad_code_verified ? <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-acid">● slot connected</span> : <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gold">● needs install</span>}
-            {listing.owner_founding_member && <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gold">🏆 founding seller</span>}
+            {listing.owner_founding_member && <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gold">founding seller</span>}
           </div>
           <Link to={`/listings/${listing.id}`} className="block font-display font-black uppercase text-2xl tracking-tight hover:text-primary truncate">{listing.website_name}</Link>
           <div className="mt-2 text-xs text-muted-foreground uppercase tracking-[0.22em]">{listing.category || 'Uncategorized'} · ${Number(listing.monthly_price || 0).toLocaleString()}/month</div>
